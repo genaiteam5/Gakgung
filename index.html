@@ -260,6 +260,9 @@ function initThree() {
     scene.add(m);
   });
 
+  // 멀리 떨어진 과녁
+  buildTarget();
+
   // 활 (간단한 'C'자 토러스 + 그립)
   bowGroup = new THREE.Group();
   const limb = new THREE.Mesh(
@@ -332,6 +335,36 @@ function makeArrow(color) {
   fletch.position.z = 0.95;
   g.add(shaft, head, fletch);
   return g;
+}
+
+/* 멀리 떨어진 과녁 (전통 표적 동심원 + 받침 기둥) */
+function buildTarget() {
+  const targetGroup = new THREE.Group();
+
+  // 동심원 표적 면 (바깥 → 안: 흰·검·파·빨·금)
+  const rings = [
+    [4.0, 0xf2f2ee], [3.2, 0x33373a], [2.4, 0x3aa0d8],
+    [1.6, 0xe23b3b], [0.8, 0xf3c41a],
+  ];
+  rings.forEach(([r, c], i) => {
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 48),
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, side: THREE.DoubleSide })
+    );
+    disc.position.z = i * 0.02;        // z-fighting 방지
+    targetGroup.add(disc);
+  });
+
+  // 받침 기둥
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.24, 7, 10),
+    new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 1 })
+  );
+  post.position.set(0, -3.5, -0.3);
+  targetGroup.add(post);
+
+  targetGroup.position.set(0, 7, -100);  // 저 멀리 z=-100 지점
+  scene.add(targetGroup);
 }
 
 /* =========================================================================
