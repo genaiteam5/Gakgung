@@ -49,6 +49,8 @@
   .fill.draw { background: linear-gradient(90deg,#2e7d32,#f5c518,#ff3b30); }
   .fill.cd   { background: linear-gradient(90deg,#ff3b30,#f5c518); }
   .val { width: 64px; text-align: right; color: #cfe0ff; font-variant-numeric: tabular-nums; }
+  .score { font-size: 22px; font-weight: bold; color: #ffd24a; font-variant-numeric: tabular-nums; }
+  .scoreUnit { font-size: 12px; color: #93a4bf; margin-left: -4px; }
 
   .state {
     font-size: 15px; font-weight: bold; padding: 3px 14px; border-radius: 6px;
@@ -95,6 +97,13 @@
     position: fixed; left: 12px; bottom: 12px; z-index: 20;
     font-size: 11px; color: #6b7d99;
   }
+  /* 명중 '+점수' 플래시 */
+  #hitFlash {
+    position: fixed; top: 30%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 20; font-size: 54px; font-weight: bold; color: #ffd24a;
+    text-shadow: 0 0 24px rgba(255,210,74,.85), 0 2px 10px rgba(0,0,0,.6);
+    opacity: 0; pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -113,6 +122,12 @@
 <div id="ui">
   <div class="panel">
     <div class="title">국궁 활쏘기 시뮬레이터 — 실시간 상태</div>
+    <div class="row">
+      <span class="label">과녁 점수</span>
+      <span id="scoreVal" class="score">0</span>
+      <span class="scoreUnit">점</span>
+      <span id="hitInfo" class="val" style="width:auto; margin-left:auto">명중 0 / 발사 0</span>
+    </div>
     <div class="row">
       <span class="label">당김 거리 (Draw)</span>
       <div class="bar"><div id="drawBar" class="fill draw"></div></div>
@@ -145,6 +160,7 @@
 </div>
 
 <div id="status">초기화 대기 중…</div>
+<div id="hitFlash"></div>
 
 <!-- 시작 화면 -->
 <div id="startScreen">
@@ -188,12 +204,22 @@ const CONFIG = {
   MAX_ARROWS: 14,                        // 동시 화살 개수 제한
 };
 
+/* 이동 과녁 설정 */
+const TARGET = {
+  baseX: 0, y: 7, z: -100,                       // 기준 위치 (저 멀리)
+  moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // 좌우/상하 이동 폭·속도
+  rings: [[0.8, 10], [1.6, 8], [2.4, 6], [3.2, 4], [4.0, 2]],  // [반지름, 점수] 안→밖
+};
+
 /* =========================================================================
    전역 상태
    ========================================================================= */
 let scene, camera, renderer;
-let bowGroup, bowString, nockedArrow, bowHandMarker, drawHandMarker;
+let bowGroup, bowString, nockedArrow, bowHandMarker, drawHandMarker, targetGroup;
 const arrows = [];                       // 날아가는 화살 목록
+
+let score = 0, hitCount = 0, shotCount = 0;          // 과녁 점수 / 명중 / 발사
+let targetPulse = 0, lastHitScore = 0, lastHitTime = -99999;
 
 let state = "IDLE";                      // IDLE | AIMING
 let prevFinger = { thumb: true, index: true, middle: true }; // 직전 프레임 접힘 상태
@@ -339,7 +365,7 @@ function makeArrow(color) {
 
 /* 멀리 떨어진 과녁 (전통 표적 동심원 + 받침 기둥) */
 function buildTarget() {
-  const targetGroup = new THREE.Group();
+  targetGroup = new THREE.Group();
 
   // 동심원 표적 면 (바깥 → 안: 흰·검·파·빨·금)
   const rings = [
@@ -363,8 +389,16 @@ function buildTarget() {
   post.position.set(0, -3.5, -0.3);
   targetGroup.add(post);
 
-  targetGroup.position.set(0, 7, -100);  // 저 멀리 z=-100 지점
+  targetGroup.position.set(TARGET.baseX, TARGET.y, TARGET.z);
   scene.add(targetGroup);
+}
+
+/* 화살이 떨어진 거리 → 점수 (안쪽 링부터 검사) */
+function scoreForDistance(d) {
+  for (const [r, pts] of TARGET.rings) {
+    if (d <= r) return pts;
+  }
+  return 0;
 }
 
 /* =========================================================================
@@ -478,7 +512,8 @@ function fireArrow(mode, now) {
   );
 
   scene.add(group, trailMesh);
-  arrows.push({ group, trailMesh, vel: { x: velX, y: velY, z: velZ }, mode, trailPoints: [] });
+  arrows.push({ group, trailMesh, vel: { x: velX, y: velY, z: velZ }, mode, trailPoints: [], scored: false });
+  shotCount++;
 
   // 동시 화살 개수 제한 (오래된 것부터 제거)
   while (arrows.length > CONFIG.MAX_ARROWS) killArrow(arrows[0]);
@@ -501,17 +536,30 @@ function killArrow(a) {
    매 프레임 물리 업데이트 (포물선 운동)
    요구사항 공식:  y = y + velocityY - (0.5 * g)
    ========================================================================= */
-function updateArrows() {
+function updateArrows(now) {
   const g = CONFIG.GRAVITY;
+  const tx = targetGroup.position.x, ty = targetGroup.position.y, tz = targetGroup.position.z;
   for (let i = arrows.length - 1; i >= 0; i--) {
     const a = arrows[i];
     const pos = a.group.position;
+    const prevZ = pos.z;
 
     // 중력 + 모드별 속도 벡터를 적용한 포물선 운동
     pos.x += a.vel.x;
     pos.z += a.vel.z;
     pos.y += a.vel.y - 0.5 * g;     // ← y = y + velocityY - (0.5 * g)
     a.vel.y -= g;                   // 다음 프레임을 위한 수직 속도 감소(중력)
+
+    // 과녁 평면 통과 판정 → 점수 계산
+    if (!a.scored && prevZ > tz && pos.z <= tz) {
+      const pts = scoreForDistance(Math.hypot(pos.x - tx, pos.y - ty));
+      if (pts > 0) {
+        score += pts; hitCount++;
+        lastHitScore = pts; lastHitTime = now;
+        targetPulse = 1;
+      }
+      a.scored = true;
+    }
 
     // 진행 방향으로 화살 정렬 (화살 로컬 -Z 가 진행방향을 향함)
     a.group.lookAt(pos.x + a.vel.x, pos.y + a.vel.y, pos.z + a.vel.z);
@@ -531,6 +579,14 @@ function updateArrows() {
     // 화면 밖으로 나가면 제거
     if (pos.y < -4 || pos.z < -210 || Math.abs(pos.x) > 130) killArrow(a);
   }
+}
+
+/* 이동 과녁: 좌우로 크게·상하로 살짝 움직이고, 명중 시 펄스 */
+function updateTarget(now) {
+  targetGroup.position.x = TARGET.baseX + Math.sin(now * TARGET.moveSpeed) * TARGET.moveAmpX;
+  targetGroup.position.y = TARGET.y + Math.sin(now * TARGET.moveSpeed * 1.7) * TARGET.moveAmpY;
+  targetPulse *= 0.9;
+  targetGroup.scale.setScalar(1 + targetPulse * 0.16);
 }
 
 /* =========================================================================
@@ -661,6 +717,9 @@ const el = {
   chipMiddle: document.getElementById("chipMiddle"),
   chipMode: document.getElementById("chipMode"),
   chipArrows: document.getElementById("chipArrows"),
+  scoreVal: document.getElementById("scoreVal"),
+  hitInfo: document.getElementById("hitInfo"),
+  hitFlash: document.getElementById("hitFlash"),
   status: document.getElementById("status"),
 };
 
@@ -700,6 +759,21 @@ function updateHUD(now) {
   el.chipMode.textContent = "최근: " + (lastFireMode === "sut" ? "숫깍지" : lastFireMode === "am" ? "암깍지" : "-");
   el.chipMode.className = "chip" + (lastFireMode ? " mode-" + lastFireMode : "");
   el.chipArrows.textContent = "화살: " + arrows.length;
+
+  // 과녁 점수
+  el.scoreVal.textContent = score;
+  el.hitInfo.textContent = "명중 " + hitCount + " / 발사 " + shotCount;
+
+  // 명중 '+점수' 플래시
+  const fa = now - lastHitTime;
+  if (fa < 800) {
+    const t = fa / 800;
+    el.hitFlash.textContent = "+" + lastHitScore;
+    el.hitFlash.style.opacity = (1 - t).toFixed(2);
+    el.hitFlash.style.transform = "translate(-50%,-50%) scale(" + (1 + t * 0.6).toFixed(2) + ")";
+  } else {
+    el.hitFlash.style.opacity = 0;
+  }
 }
 
 function setChip(node, name, folded) {
@@ -717,7 +791,8 @@ function animate() {
   // 당김 세기 스무딩
   drawPowerSmooth += (drawPower - drawPowerSmooth) * 0.3;
 
-  updateArrows();
+  updateArrows(now);
+  updateTarget(now);
   updateBowVisual();
   updateHUD(now);
 
