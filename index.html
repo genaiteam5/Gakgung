@@ -210,6 +210,7 @@ const CONFIG = {
   TARGET: { x: 0, y: 3.5, z: -50, r: 3.3 },
   AIM_YAW: 0.32, AIM_PITCH: 0.24,
   AIM_INVERT_X: 1, AIM_INVERT_Y: 1,
+  RIG_OFFSET_X: 0.82,            // 1인칭 활/팔을 화면 오른쪽으로 이동(과녁 가림 방지)
 };
 
 const HAND_BONES = [
@@ -451,11 +452,12 @@ function buildTarget() {
 /* ===== 1인칭 플레이어 리그 ===== */
 function buildPlayer() {
   playerRig = new THREE.Group();
+  playerRig.rotation.y = -0.10;        // 오른쪽 활을 살짝 안쪽으로 캔트
   camera.add(playerRig);
 
   bow = buildBow();
   bow.position.copy(BOW_POS);
-  bow.rotation.z = 0.06;
+  bow.rotation.z = 0.11;
   playerRig.add(bow);
 
   sight = buildSight();
@@ -623,10 +625,15 @@ function updateStateMachine(f, now) {
 /* ===== 발사 ===== */
 const _spawn = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
+const _camPos = new THREE.Vector3();
+const _aimDir = new THREE.Vector3();
 function fireArrow(mode, now) {
   const p = drawPowerSmooth;
   nockedArrow.getWorldPosition(_spawn);
+  camera.getWorldPosition(_camPos);
   camera.getWorldDirection(_fwd);
+  // 활이 화면 오른쪽에 있어도 화살은 중앙 조준점(크로스헤어)으로 수렴
+  _aimDir.copy(_camPos).addScaledVector(_fwd, 52).sub(_spawn).normalize();
 
   let speed, vy, tint;
   if (mode === "sut") {
@@ -639,7 +646,7 @@ function fireArrow(mode, now) {
     tint = 0x4a9eff; currentCooldown = CONFIG.AM_COOLDOWN;
   }
 
-  const vel = { x: _fwd.x * speed, y: _fwd.y * speed + vy, z: _fwd.z * speed };
+  const vel = { x: _aimDir.x * speed, y: _aimDir.y * speed + vy, z: _aimDir.z * speed };
 
   const model = buildArrow(tint);
   model.scale.setScalar(1.4);
@@ -723,7 +730,7 @@ function updateAimAndRig(now) {
   camera.rotation.x = aimPitch;
 
   playerRig.position.set(
-    Math.sin(now * 0.0011) * 0.006,
+    CONFIG.RIG_OFFSET_X + Math.sin(now * 0.0011) * 0.006,
     Math.sin(now * 0.0016) * 0.007, 0);
 
   const pull = drawPowerSmooth;
