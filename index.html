@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>국궁 활쏘기 시뮬레이터 — MediaPipe Hands + Three.js</title>
+<style>
+  :root {
+    --sut: #ff3b30;   /* 숫깍지 = 붉은색 */
+    --am:  #3b82f6;   /* 암깍지 = 푸른색 */
+    --aim: #f5c518;
+    --ok:  #34d058;
+    --bg:  #0a0e16;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: "Consolas", "D2Coding", monospace; color: #e8eef7; }
+
+  /* Three.js 캔버스 — 좌우 반전(거울 모드) */
+  #three { position: fixed; inset: 0; transform: scaleX(-1); }
+
+  /* 웹캠 디버그 캔버스 (우하단 PIP) */
+  #webcam {
+    position: fixed; right: 14px; bottom: 14px;
+    width: 320px; height: 240px;
+    border: 2px solid #2c3a52; border-radius: 8px;
+    background: #000; z-index: 20;
+    box-shadow: 0 6px 24px rgba(0,0,0,.55);
+  }
+  #webcamLabel {
+    position: fixed; right: 18px; bottom: 256px; z-index: 21;
+    font-size: 11px; color: #8aa0c0; letter-spacing: .5px;
+  }
+
+  /* 상단 UI 패널 */
+  #ui {
+    position: fixed; top: 12px; left: 12px; right: 360px; z-index: 20;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .panel {
+    background: rgba(12,18,30,.82); border: 1px solid #243049;
+    border-radius: 10px; padding: 12px 16px; backdrop-filter: blur(6px);
+  }
+  .title { font-size: 13px; font-weight: bold; color: #9fc2ff; letter-spacing: 1px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 12px; }
+  .label { width: 132px; color: #93a4bf; flex-shrink: 0; }
+  .bar { flex: 1; height: 14px; background: #1a2336; border-radius: 7px; overflow: hidden; border: 1px solid #2a3854; }
+  .fill { height: 100%; width: 0%; transition: width .08s linear; border-radius: 7px; }
+  .fill.draw { background: linear-gradient(90deg,#2e7d32,#f5c518,#ff3b30); }
+  .fill.cd   { background: linear-gradient(90deg,#ff3b30,#f5c518); }
+  .val { width: 64px; text-align: right; color: #cfe0ff; font-variant-numeric: tabular-nums; }
+
+  .state {
+    font-size: 15px; font-weight: bold; padding: 3px 14px; border-radius: 6px;
+    background: #1a2336; border: 1px solid #2a3854;
+  }
+  .state.idle { color: #93a4bf; }
+  .state.aim  { color: var(--aim); border-color: var(--aim); box-shadow: 0 0 10px rgba(245,197,24,.35); }
+  .state.sut  { color: #fff; background: var(--sut); border-color: var(--sut); }
+  .state.am   { color: #fff; background: var(--am);  border-color: var(--am); }
+
+  .chips { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .chip {
+    font-size: 11px; padding: 3px 9px; border-radius: 5px;
+    background: #1a2336; border: 1px solid #2a3854; color: #6b7d99;
+  }
+  .chip.folded { background: #14361b; border-color: #2e7d32; color: #7ee08a; }
+  .chip.mode-sut { background: var(--sut); color:#fff; border-color: var(--sut); }
+  .chip.mode-am  { background: var(--am);  color:#fff; border-color: var(--am); }
+  .hint { font-size: 11px; color: #6b7d99; margin-top: 6px; line-height: 1.6; }
+
+  /* 시작 화면 */
+  #startScreen {
+    position: fixed; inset: 0; z-index: 50;
+    background: radial-gradient(ellipse at center, #16203a, #060912);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 30px;
+  }
+  #startScreen h1 { font-size: 30px; color: #cfe0ff; margin-bottom: 6px; }
+  #startScreen h2 { font-size: 14px; color: #6f86ad; font-weight: normal; margin-bottom: 24px; }
+  .guide { max-width: 640px; text-align: left; font-size: 13px; line-height: 1.9; color: #aebfdc; margin-bottom: 26px; }
+  .guide b.sut { color: var(--sut); }
+  .guide b.am  { color: var(--am); }
+  #startBtn {
+    font-family: inherit; font-size: 16px; font-weight: bold;
+    padding: 14px 42px; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(135deg,#3b82f6,#1d4ed8); color: #fff; border: none;
+    box-shadow: 0 8px 30px rgba(59,130,246,.45);
+  }
+  #startBtn:hover { filter: brightness(1.12); }
+  #errorBox {
+    margin-top: 18px; color: #ff8a80; font-size: 12px; max-width: 560px; line-height: 1.6;
+  }
+  #status {
+    position: fixed; left: 12px; bottom: 12px; z-index: 20;
+    font-size: 11px; color: #6b7d99;
+  }
+</style>
+</head>
+<body>
+
+<!-- 3D 씬 (좌우 반전 적용) -->
+<canvas id="three"></canvas>
+
+<!-- 웹캠 + 스켈레톤 디버그 오버레이 -->
+<div id="webcamLabel">웹캠 디버그 (거울 모드)</div>
+<canvas id="webcam" width="320" height="240"></canvas>
+
+<!-- MediaPipe 입력용 비디오 (화면 밖에 숨김) -->
+<video class="input_video" playsinline muted></video>
+
+<!-- 상단 HUD -->
+<div id="ui">
+  <div class="panel">
+    <div class="title">국궁 활쏘기 시뮬레이터 — 실시간 상태</div>
+    <div class="row">
+      <span class="label">당김 거리 (Draw)</span>
+      <div class="bar"><div id="drawBar" class="fill draw"></div></div>
+      <span id="drawVal" class="val">0%</span>
+    </div>
+    <div class="row">
+      <span class="label">오른손 제스처</span>
+      <span id="gestureState" class="state idle">대기</span>
+    </div>
+    <div class="row">
+      <span class="label">재장전 쿨타임</span>
+      <div class="bar"><div id="cdBar" class="fill cd"></div></div>
+      <span id="cdVal" class="val">READY</span>
+    </div>
+    <div class="row">
+      <span class="label">손가락 판별</span>
+      <div class="chips">
+        <span id="chipThumb"  class="chip">엄지 ○</span>
+        <span id="chipIndex"  class="chip">검지 ○</span>
+        <span id="chipMiddle" class="chip">중지 ○</span>
+        <span id="chipMode"   class="chip">최근: -</span>
+        <span id="chipArrows" class="chip">화살: 0</span>
+      </div>
+    </div>
+    <div class="hint">
+      <b style="color:var(--sut)">숫깍지</b>: 주먹 → 엄지·검지·중지 <b>동시에 확 펴기</b> (빠른 직선·쿨타임 1.5s) &nbsp;|&nbsp;
+      <b style="color:var(--am)">암깍지</b>: 주먹 유지 → <b>엄지만 위로 튕기기</b> (높은 곡선·쿨타임 0.2s 연사)
+    </div>
+  </div>
+</div>
+
+<div id="status">초기화 대기 중…</div>
+
+<!-- 시작 화면 -->
+<div id="startScreen">
+  <h1>🏹 국궁 활쏘기 시뮬레이터</h1>
+  <h2>Google MediaPipe Hands &times; Three.js — 단일 파일 프로토타입</h2>
+  <div class="guide">
+    1. <b>왼손</b>은 활을 잡듯 펴서 앞에 두고, <b>오른손</b>은 시위를 당기듯 사용합니다.<br />
+    2. 오른손으로 <b>주먹을 꽉 쥐면</b> 시위를 당기는 '조준' 상태가 됩니다. 양손을 멀리 벌릴수록 더 강하게 당겨집니다.<br />
+    3. <b class="sut">숫깍지 풀그립</b> — 주먹에서 엄지·검지·중지를 <b>한 번에 확 펴면</b> 묵직하고 평평한 직선 궤적으로 발사됩니다.<br />
+    4. <b class="am">암깍지</b> — 검지·중지는 주먹 그대로 두고 <b>엄지손가락만 위로 까딱 튕기면</b> 하늘로 둥글게 솟는 곡선 궤적으로 발사됩니다 (연사 가능).<br />
+    5. 웹캠 사용 권한을 허용해 주세요. (file:// 에서 카메라가 막히면 localhost 로 서빙하세요.)
+  </div>
+  <button id="startBtn">웹캠 시작하기</button>
+  <div id="errorBox"></div>
+</div>
+
+<!-- ===== CDN: Three.js + MediaPipe Hands ===== -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   설정값 (튜닝 포인트)
+   ========================================================================= */
+const CONFIG = {
+  GRAVITY: 0.022,            // 가상 중력 가속도 g (프레임당)
+  // 숫깍지 풀그립: 빠르고 평평한 직선형 궤적
+  SUT_SPEED: 2.4, SUT_SPEED_GAIN: 1.7,   // 전진 속도(매우 강함)
+  SUT_VY: 0.35,   SUT_VY_GAIN: 0.20,     // 초기 상승(낙차 적음)
+  SUT_COOLDOWN: 1500,                    // 재장전 쿨타임 1.5초
+  // 암깍지: 느리지만 높이 솟구치는 곡선형 호(Arc)
+  AM_SPEED: 0.9,  AM_SPEED_GAIN: 0.6,    // 전진 속도(풀그립의 약 절반)
+  AM_VY: 0.95,    AM_VY_GAIN: 0.45,      // 초기 상승(큰 낙차의 곡선)
+  AM_COOLDOWN: 200,                      // 재장전 쿨타임 0.2초 (연사)
+  DRAW_MIN: 0.12, DRAW_MAX: 0.62,        // 당김 거리 정규화 범위
+  MAX_TRAIL: 48,                         // 잔상 선 최대 점 개수
+  MAX_ARROWS: 14,                        // 동시 화살 개수 제한
+};
+
+/* =========================================================================
+   전역 상태
+   ========================================================================= */
+let scene, camera, renderer;
+let bowGroup, bowString, nockedArrow, bowHandMarker, drawHandMarker;
+const arrows = [];                       // 날아가는 화살 목록
+
+let state = "IDLE";                      // IDLE | AIMING
+let prevFinger = { thumb: true, index: true, middle: true }; // 직전 프레임 접힘 상태
+let lastFireTime = -99999;
+let currentCooldown = 0;
+let lastFireMode = null;                 // 'sut' | 'am'
+
+let drawPower = 0;                       // 0~1 정규화된 당김 세기
+let drawPowerSmooth = 0;
+let rawDrawDist = 0;
+let curFinger = { thumb: true, index: true, middle: true };
+
+// MediaPipe 결과로부터 매 프레임 갱신되는 월드 좌표
+let latestBowCenter = null;              // 왼손(활손) 중심 → 월드
+let latestDrawPoint = null;              // 오른손 Landmark2(엄지 기저) → 월드
+let handsPresent = { bow: false, draw: false };
+
+const smoothedNock = new THREE.Vector3(0, 5, 3.4);
+const clock = new THREE.Clock();
+
+/* =========================================================================
+   Three.js 초기화
+   ========================================================================= */
+function initThree() {
+  const canvas = document.getElementById("three");
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e16);
+  scene.fog = new THREE.Fog(0x0a0e16, 70, 320);
+
+  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
+  camera.position.set(0, 8, 18);
+  camera.lookAt(0, 4, -28);
+
+  // 조명
+  scene.add(new THREE.HemisphereLight(0x9fc2ff, 0x1a1410, 0.9));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+  dir.position.set(-8, 16, 10);
+  scene.add(dir);
+
+  // 바닥 + 그리드 (궤적 거리 가늠용)
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(260, 420),
+    new THREE.MeshStandardMaterial({ color: 0x121a2a, roughness: 1 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, -0.05, -110);
+  scene.add(ground);
+
+  const grid = new THREE.GridHelper(260, 52, 0x3a5278, 0x1f2c44);
+  grid.position.set(0, 0.02, -110);
+  scene.add(grid);
+
+  // 거리 마커 (10/20/30... 단위 느낌)
+  [-25, -55, -90, -130, -175].forEach((z, i) => {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(70, 0.12, 0.6),
+      new THREE.MeshBasicMaterial({ color: i % 2 ? 0x2e7d32 : 0x445b82 })
+    );
+    m.position.set(0, 0.06, z);
+    scene.add(m);
+  });
+
+  // 활 (간단한 'C'자 토러스 + 그립)
+  bowGroup = new THREE.Group();
+  const limb = new THREE.Mesh(
+    new THREE.TorusGeometry(2.6, 0.16, 10, 40, Math.PI * 1.15),
+    new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.6 })
+  );
+  limb.rotation.z = Math.PI / 2 - (Math.PI * 1.15) / 2;
+  bowGroup.add(limb);
+  const grip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.22, 1.1, 10),
+    new THREE.MeshStandardMaterial({ color: 0x5c3a1c })
+  );
+  bowGroup.add(grip);
+  bowGroup.position.set(0, 5, 3);
+  scene.add(bowGroup);
+
+  // 활시위 (3점 라인: 상단 고자 - 시위 당김점 - 하단 고자)
+  bowString = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 7, 3), new THREE.Vector3(0, 5, 3), new THREE.Vector3(0, 3, 3),
+    ]),
+    new THREE.LineBasicMaterial({ color: 0xdfe8ff })
+  );
+  scene.add(bowString);
+
+  // 시위에 걸린 화살 (조준 중 표시)
+  nockedArrow = makeArrow(0xffe08a);
+  nockedArrow.visible = false;
+  scene.add(nockedArrow);
+
+  // 손 위치 마커
+  bowHandMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0x34d058, emissive: 0x0d3, emissiveIntensity: 0.4 })
+  );
+  drawHandMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0xf5c518, emissive: 0x553, emissiveIntensity: 0.4 })
+  );
+  bowHandMarker.visible = drawHandMarker.visible = false;
+  scene.add(bowHandMarker, drawHandMarker);
+
+  window.addEventListener("resize", onResize);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+/* 화살 메쉬 (로컬 -Z 방향을 향함 → lookAt 으로 진행방향 정렬) */
+function makeArrow(color) {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0xc9a06a })
+  );
+  shaft.rotation.x = Math.PI / 2;                 // Y축 → Z축 정렬
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.16, 0.5, 10),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 })
+  );
+  head.rotation.x = -Math.PI / 2;                 // 촉이 -Z 를 향함
+  head.position.z = -1.35;
+  const fletch = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.02, 0.42),
+    new THREE.MeshStandardMaterial({ color })
+  );
+  fletch.position.z = 0.95;
+  g.add(shaft, head, fletch);
+  return g;
+}
+
+/* =========================================================================
+   좌표 변환: MediaPipe 정규화 좌표 → Three.js 월드 좌표
+   (3D 캔버스는 CSS scaleX(-1) 로 거울 반전되므로 landmark.x 를 그대로 사용)
+   ========================================================================= */
+function landmarkToWorld(lm) {
+  const wx = (lm.x - 0.5) * 14;            // 좌우 펼침
+  const wy = (0.5 - lm.y) * 9 + 4;         // 위로 들어올림 (landmark y 는 아래로 증가)
+  const wz = 3 + (lm.z || 0) * 6;          // 깊이
+  return new THREE.Vector3(wx, wy, wz);
+}
+
+function dist3D(a, b) {
+  const dz = (a.z || 0) - (b.z || 0);
+  return Math.hypot(a.x - b.x, a.y - b.y, dz);
+}
+
+function handCenter(lms) {
+  let x = 0, y = 0, z = 0;
+  for (const l of lms) { x += l.x; y += l.y; z += l.z || 0; }
+  return { x: x / lms.length, y: y / lms.length, z: z / lms.length };
+}
+
+/* =========================================================================
+   손가락 구부림(Folded) / 폄(Extended) 판별
+   관절의 상대적 위치를 비교하는 직관적인 True/False 판별법.
+   - 검지/중지: Tip(8,12)이 자신의 MCP(5,9)보다 손목(0) 쪽으로 말려들어오면 접힘
+   - 엄지: Tip(4)이 MCP(2)보다 새끼손가락 기저(17) 쪽(안쪽)으로 붙으면 접힘
+   ========================================================================= */
+function computeFingerStates(lms) {
+  const w = lms[0];
+  const d = (a, b) => dist3D(a, b);
+
+  // 검지: 8번 Tip 이 5번 MCP 보다 손목에 가까움(=아래로 말림) → 접힘
+  const isIndexFolded  = d(lms[8],  w) < d(lms[5], w);
+  // 중지: 12번 Tip 이 9번 MCP 보다 손목에 가까움 → 접힘
+  const isMiddleFolded = d(lms[12], w) < d(lms[9], w);
+  // 엄지: 4번 Tip 이 2번 MCP 보다 새끼 기저(17)에 가까움(=안쪽/아래로 접힘) → 접힘
+  const isThumbFolded  = d(lms[4], lms[17]) < d(lms[2], lms[17]);
+
+  return { thumb: isThumbFolded, index: isIndexFolded, middle: isMiddleFolded };
+}
+
+/* =========================================================================
+   제스처 상태 머신 + 발사 분기
+   ========================================================================= */
+function updateStateMachine(f, now) {
+  const cooldownLeft = Math.max(0, lastFireTime + currentCooldown - now);
+  const onCooldown = cooldownLeft > 0;
+
+  const isFist      = f.thumb && f.index && f.middle;             // 주먹 꽉 쥠
+  const allExtended = !f.thumb && !f.index && !f.middle;          // 손 확 펴짐
+  const prevAllExt  = !prevFinger.thumb && !prevFinger.index && !prevFinger.middle;
+  const thumbRising = !f.thumb && prevFinger.thumb;               // 엄지: 접힘→폄 (튕김)
+  const allExtRising = allExtended && !prevAllExt;                // 세 손가락 동시 폄 순간
+
+  if (state === "IDLE") {
+    if (isFist) state = "AIMING";                                // 주먹 쥐면 조준 시작
+  }
+
+  if (state === "AIMING") {
+    // ① 숫깍지 풀그립: [엄지+검지+중지가 '동시에' 모두 펴지는 순간]
+    if (allExtRising) {
+      if (!onCooldown) fireArrow("sut", now);
+      state = "IDLE";
+    }
+    // ② 암깍지: [검지·중지는 구부린 채, '엄지만' 위로 튕기듯 펴지는 순간]
+    else if (thumbRising && f.index && f.middle) {
+      if (!onCooldown) fireArrow("am", now);
+      state = "IDLE";
+    }
+  }
+}
+
+/* =========================================================================
+   화살 발사 — 깍지 모드별 속도 벡터 차별화
+   ========================================================================= */
+function fireArrow(mode, now) {
+  const p = drawPowerSmooth;                       // 당김 세기 0~1
+  const spawn = latestBowCenter ? latestBowCenter.clone() : new THREE.Vector3(0, 5, 3);
+
+  // 약간의 좌우 조준 (양손 x 차이 반영)
+  let velX = 0;
+  if (latestBowCenter && latestDrawPoint) {
+    velX = THREE.MathUtils.clamp((latestBowCenter.x - latestDrawPoint.x) * 0.04, -0.25, 0.25);
+  }
+
+  let velY, velZ, color;
+  if (mode === "sut") {
+    // 숫깍지: 전진 속도가 매우 강하고, 상승이 작아 평평하고 길게 뻗는 묵직한 직선형
+    velZ = -(CONFIG.SUT_SPEED + p * CONFIG.SUT_SPEED_GAIN);
+    velY =  CONFIG.SUT_VY + p * CONFIG.SUT_VY_GAIN;
+    color = 0xff3b30;
+    currentCooldown = CONFIG.SUT_COOLDOWN;
+  } else {
+    // 암깍지: 전진 속도는 절반 수준, 대신 위로 크게 솟구쳐 낙차가 큰 곡선형 호(Arc)
+    velZ = -(CONFIG.AM_SPEED + p * CONFIG.AM_SPEED_GAIN);
+    velY =  CONFIG.AM_VY + p * CONFIG.AM_VY_GAIN;
+    color = 0x3b82f6;
+    currentCooldown = CONFIG.AM_COOLDOWN;
+  }
+
+  const group = makeArrow(color);
+  group.position.copy(spawn);
+
+  // 잔상 선(Trail): 숫깍지=반투명 붉은색 / 암깍지=반투명 푸른색
+  const trailMesh = new THREE.Mesh(
+    new THREE.BufferGeometry(),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false })
+  );
+
+  scene.add(group, trailMesh);
+  arrows.push({ group, trailMesh, vel: { x: velX, y: velY, z: velZ }, mode, trailPoints: [] });
+
+  // 동시 화살 개수 제한 (오래된 것부터 제거)
+  while (arrows.length > CONFIG.MAX_ARROWS) killArrow(arrows[0]);
+
+  lastFireTime = now;
+  lastFireMode = mode;
+}
+
+function killArrow(a) {
+  a.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  scene.remove(a.group);
+  a.trailMesh.geometry.dispose();
+  a.trailMesh.material.dispose();
+  scene.remove(a.trailMesh);
+  const i = arrows.indexOf(a);
+  if (i >= 0) arrows.splice(i, 1);
+}
+
+/* =========================================================================
+   매 프레임 물리 업데이트 (포물선 운동)
+   요구사항 공식:  y = y + velocityY - (0.5 * g)
+   ========================================================================= */
+function updateArrows() {
+  const g = CONFIG.GRAVITY;
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    const a = arrows[i];
+    const pos = a.group.position;
+
+    // 중력 + 모드별 속도 벡터를 적용한 포물선 운동
+    pos.x += a.vel.x;
+    pos.z += a.vel.z;
+    pos.y += a.vel.y - 0.5 * g;     // ← y = y + velocityY - (0.5 * g)
+    a.vel.y -= g;                   // 다음 프레임을 위한 수직 속도 감소(중력)
+
+    // 진행 방향으로 화살 정렬 (화살 로컬 -Z 가 진행방향을 향함)
+    a.group.lookAt(pos.x + a.vel.x, pos.y + a.vel.y, pos.z + a.vel.z);
+
+    // 잔상 선(Trail) 갱신
+    a.trailPoints.push(pos.clone());
+    if (a.trailPoints.length > CONFIG.MAX_TRAIL) a.trailPoints.shift();
+    if (a.trailPoints.length >= 2) {
+      const curve = new THREE.CatmullRomCurve3(a.trailPoints);
+      const newGeo = new THREE.TubeGeometry(
+        curve, Math.min(a.trailPoints.length * 2, 90), 0.12, 6, false
+      );
+      a.trailMesh.geometry.dispose();
+      a.trailMesh.geometry = newGeo;
+    }
+
+    // 화면 밖으로 나가면 제거
+    if (pos.y < -4 || pos.z < -210 || Math.abs(pos.x) > 130) killArrow(a);
+  }
+}
+
+/* =========================================================================
+   활 / 시위 / 조준 화살 시각 갱신
+   ========================================================================= */
+function updateBowVisual() {
+  // 활은 왼손(활손)을 부드럽게 따라감
+  if (latestBowCenter) {
+    bowGroup.position.lerp(latestBowCenter, 0.4);
+    bowHandMarker.position.copy(latestBowCenter);
+    bowHandMarker.visible = true;
+  } else {
+    bowHandMarker.visible = false;
+  }
+
+  drawHandMarker.visible = !!latestDrawPoint;
+  if (latestDrawPoint) drawHandMarker.position.copy(latestDrawPoint);
+
+  // 시위 당김점: 조준 중이면 오른손 위치로, 아니면 활 중심으로
+  let nock;
+  if (state === "AIMING" && latestDrawPoint) {
+    nock = latestDrawPoint.clone();
+    // 양손 거리(당김 세기)에 비례해 시위를 뒤로 더 팽팽하게
+    nock.z = bowGroup.position.z + 0.6 + drawPowerSmooth * 4.2;
+  } else {
+    nock = bowGroup.position.clone();
+    nock.z += 0.5;
+  }
+  smoothedNock.lerp(nock, 0.5);
+
+  const top = bowGroup.position.clone().add(new THREE.Vector3(0,  2.4, 0));
+  const bot = bowGroup.position.clone().add(new THREE.Vector3(0, -2.4, 0));
+  bowString.geometry.setFromPoints([top, smoothedNock, bot]);
+
+  // 조준 중에는 시위에 걸린 화살 표시
+  nockedArrow.visible = state === "AIMING";
+  if (nockedArrow.visible) {
+    nockedArrow.position.copy(smoothedNock);
+    nockedArrow.lookAt(bowGroup.position.x, bowGroup.position.y, bowGroup.position.z - 6);
+  }
+}
+
+/* =========================================================================
+   MediaPipe Hands 결과 처리
+   ========================================================================= */
+const webcamCanvas = document.getElementById("webcam");
+const webcamCtx = webcamCanvas.getContext("2d");
+
+function onResults(results) {
+  const W = webcamCanvas.width, H = webcamCanvas.height;
+
+  // --- 웹캠 디버그 캔버스: 거울처럼 좌우 반전하여 그리기 ---
+  webcamCtx.save();
+  webcamCtx.clearRect(0, 0, W, H);
+  webcamCtx.translate(W, 0);
+  webcamCtx.scale(-1, 1);
+  if (results.image) webcamCtx.drawImage(results.image, 0, 0, W, H);
+
+  // --- 검출된 손들을 평균 x 좌표로 좌/우 구분 ---
+  // (반전 안 된 원본 영상 기준: 사용자의 오른손 = 화면 왼쪽 = 작은 x)
+  let hands = [];
+  if (results.multiHandLandmarks) {
+    for (const lms of results.multiHandLandmarks) {
+      hands.push({ lms, avgX: handCenter(lms).x });
+    }
+  }
+  hands.sort((a, b) => a.avgX - b.avgX);
+
+  let drawHand = null, bowHand = null;
+  if (hands.length >= 2) {
+    drawHand = hands[0];          // 작은 x → 사용자의 오른손(시위 당기는 손)
+    bowHand  = hands[hands.length - 1]; // 큰 x → 사용자의 왼손(활손)
+  } else if (hands.length === 1) {
+    if (hands[0].avgX < 0.5) drawHand = hands[0];
+    else bowHand = hands[0];
+  }
+
+  // --- 21개 관절 뼈대 오버레이 ---
+  if (bowHand) {
+    drawConnectors(webcamCtx, bowHand.lms, HAND_CONNECTIONS, { color: "#34d058", lineWidth: 3 });
+    drawLandmarks(webcamCtx, bowHand.lms, { color: "#aef2b8", lineWidth: 1, radius: 3 });
+  }
+  if (drawHand) {
+    drawConnectors(webcamCtx, drawHand.lms, HAND_CONNECTIONS, { color: "#f5c518", lineWidth: 3 });
+    drawLandmarks(webcamCtx, drawHand.lms, { color: "#fff0b0", lineWidth: 1, radius: 3 });
+  }
+  webcamCtx.restore();
+
+  // --- 손 데이터 → 월드 좌표 / 당김 거리 / 손가락 상태 ---
+  handsPresent.bow = !!bowHand;
+  handsPresent.draw = !!drawHand;
+
+  latestBowCenter = bowHand ? landmarkToWorld(handCenter(bowHand.lms)) : null;
+  latestDrawPoint = drawHand ? landmarkToWorld(drawHand.lms[2]) : null; // Landmark 2 = 엄지 기저
+
+  // 당김 거리: 왼손 중심점 ↔ 오른손 엄지 기저 관절(2번)의 3D 거리
+  if (bowHand && drawHand) {
+    rawDrawDist = dist3D(handCenter(bowHand.lms), drawHand.lms[2]);
+  } else {
+    rawDrawDist = 0;
+  }
+  drawPower = THREE.MathUtils.clamp(
+    (rawDrawDist - CONFIG.DRAW_MIN) / (CONFIG.DRAW_MAX - CONFIG.DRAW_MIN), 0, 1
+  );
+
+  const now = performance.now();
+  if (drawHand) {
+    curFinger = computeFingerStates(drawHand.lms);
+    updateStateMachine(curFinger, now);
+    prevFinger = curFinger;
+  } else {
+    // 오른손을 잃으면 조준 해제
+    state = "IDLE";
+  }
+}
+
+/* =========================================================================
+   HUD 갱신
+   ========================================================================= */
+const el = {
+  drawBar: document.getElementById("drawBar"),
+  drawVal: document.getElementById("drawVal"),
+  gesture: document.getElementById("gestureState"),
+  cdBar: document.getElementById("cdBar"),
+  cdVal: document.getElementById("cdVal"),
+  chipThumb: document.getElementById("chipThumb"),
+  chipIndex: document.getElementById("chipIndex"),
+  chipMiddle: document.getElementById("chipMiddle"),
+  chipMode: document.getElementById("chipMode"),
+  chipArrows: document.getElementById("chipArrows"),
+  status: document.getElementById("status"),
+};
+
+function updateHUD(now) {
+  // 당김 거리 바
+  el.drawBar.style.width = (drawPowerSmooth * 100).toFixed(0) + "%";
+  el.drawVal.textContent = (drawPowerSmooth * 100).toFixed(0) + "%";
+
+  // 제스처 상태
+  let label, cls;
+  if (now - lastFireTime < 500 && lastFireMode) {
+    label = lastFireMode === "sut" ? "숫깍지 발사!" : "암깍지 발사!";
+    cls = lastFireMode;
+  } else if (state === "AIMING") {
+    label = "조준 / 당김 중"; cls = "aim";
+  } else {
+    label = handsPresent.draw ? "대기" : "대기 (오른손 없음)"; cls = "idle";
+  }
+  el.gesture.textContent = label;
+  el.gesture.className = "state " + cls;
+
+  // 재장전 쿨타임 바
+  const cdLeft = Math.max(0, lastFireTime + currentCooldown - now);
+  if (cdLeft > 0 && currentCooldown > 0) {
+    el.cdBar.style.width = ((cdLeft / currentCooldown) * 100).toFixed(0) + "%";
+    el.cdVal.textContent = (cdLeft / 1000).toFixed(2) + "s";
+  } else {
+    el.cdBar.style.width = "0%";
+    el.cdVal.textContent = "READY";
+  }
+
+  // 손가락 판별 칩
+  setChip(el.chipThumb,  "엄지", curFinger.thumb);
+  setChip(el.chipIndex,  "검지", curFinger.index);
+  setChip(el.chipMiddle, "중지", curFinger.middle);
+
+  el.chipMode.textContent = "최근: " + (lastFireMode === "sut" ? "숫깍지" : lastFireMode === "am" ? "암깍지" : "-");
+  el.chipMode.className = "chip" + (lastFireMode ? " mode-" + lastFireMode : "");
+  el.chipArrows.textContent = "화살: " + arrows.length;
+}
+
+function setChip(node, name, folded) {
+  node.textContent = name + (folded ? " ●접힘" : " ○폄");
+  node.className = "chip" + (folded ? " folded" : "");
+}
+
+/* =========================================================================
+   메인 렌더 루프
+   ========================================================================= */
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+
+  // 당김 세기 스무딩
+  drawPowerSmooth += (drawPower - drawPowerSmooth) * 0.3;
+
+  updateArrows();
+  updateBowVisual();
+  updateHUD(now);
+
+  renderer.render(scene, camera);
+}
+
+/* =========================================================================
+   MediaPipe + 웹캠 초기화
+   ========================================================================= */
+let hands, mpCamera;
+const videoEl = document.querySelector(".input_video");
+
+function initMediaPipe() {
+  hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
+  });
+  hands.setOptions({
+    maxNumHands: 2,                // 멀티 핸드(양손)
+    modelComplexity: 1,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6,
+    selfieMode: false,             // 반전은 직접 처리
+  });
+  hands.onResults(onResults);
+}
+
+async function startCamera() {
+  const errBox = document.getElementById("errorBox");
+  errBox.textContent = "";
+
+  if (typeof THREE === "undefined") { errBox.textContent = "Three.js CDN 로드 실패."; return; }
+  if (typeof Hands === "undefined" || typeof Camera === "undefined") {
+    errBox.textContent = "MediaPipe CDN 로드 실패. 인터넷 연결을 확인하세요.";
+    return;
+  }
+
+  try {
+    el.status.textContent = "MediaPipe 모델 로딩 중…";
+    initMediaPipe();
+
+    mpCamera = new Camera(videoEl, {
+      onFrame: async () => { await hands.send({ image: videoEl }); },
+      width: 640,
+      height: 480,
+    });
+    await mpCamera.start();
+
+    document.getElementById("startScreen").style.display = "none";
+    el.status.textContent = "인식 중 — 양손을 웹캠에 보여주세요";
+  } catch (e) {
+    errBox.textContent =
+      "웹캠을 시작할 수 없습니다: " + (e && e.message ? e.message : e) +
+      " — 카메라 권한을 허용하거나, file:// 대신 localhost(http) 로 실행해 보세요.";
+    el.status.textContent = "웹캠 오류";
+  }
+}
+
+/* =========================================================================
+   부트스트랩
+   ========================================================================= */
+initThree();
+animate();
+document.getElementById("startBtn").addEventListener("click", startCamera);
+</script>
+</body>
+</html>
