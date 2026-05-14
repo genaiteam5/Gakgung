@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GAKGUNG · 국궁 활쏘기 시뮬레이터</title>
+<title>GAKGUNG · 국궁 활쏘기 시뮬레이터 (1인칭)</title>
 <style>
   :root {
-    --sut: #ff5a47;   /* 숫깍지 */
-    --am:  #4a9eff;   /* 암깍지 */
+    --sut: #ff5a47;
+    --am:  #4a9eff;
     --aim: #ffd24a;
     --ink: rgba(255,255,255,.95);
   }
@@ -18,22 +18,15 @@
     color: var(--ink); -webkit-font-smoothing: antialiased;
   }
 
-  /* 레이어 1 — 웹캠 피드 + 손 스켈레톤 (거울 모드) */
   #feed  { position: fixed; inset: 0; z-index: 0; background: #05070c; }
-  /* 레이어 2 — 투명 3D 씬 (과녁 + 화살 궤적), 좌우 반전 */
   #three { position: fixed; inset: 0; z-index: 1; transform: scaleX(-1); }
-  /* 레이어 3 — HUD */
   #hud   { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
 
-  /* MediaPipe 입력 비디오 (화면 밖) */
   .input_video { position: absolute; left: -9999px; width: 640px; height: 480px; }
 
-  /* 상·하단 그라데이션 (텍스트 가독성) */
-  #hud::before, #hud::after {
-    content: ""; position: absolute; left: 0; right: 0; height: 165px;
-  }
+  #hud::before, #hud::after { content: ""; position: absolute; left: 0; right: 0; height: 165px; }
   #hud::before { top: 0;    background: linear-gradient(180deg, rgba(0,0,0,.45), transparent); }
-  #hud::after  { bottom: 0; background: linear-gradient(0deg,   rgba(0,0,0,.38), transparent); }
+  #hud::after  { bottom: 0; background: linear-gradient(0deg,   rgba(0,0,0,.42), transparent); }
 
   .readout { position: absolute; }
   .readout.tl { top: 30px; left: 38px; }
@@ -42,8 +35,7 @@
 
   .rlabel {
     font-size: 11px; font-weight: 700; letter-spacing: .22em;
-    opacity: .72; text-transform: uppercase;
-    text-shadow: 0 1px 6px rgba(0,0,0,.7);
+    opacity: .72; text-transform: uppercase; text-shadow: 0 1px 6px rgba(0,0,0,.7);
   }
   .rvalue {
     font-size: 58px; font-weight: 200; line-height: 1.05; margin-top: 2px;
@@ -56,13 +48,27 @@
     font-size: 11px; font-weight: 600; letter-spacing: .12em; opacity: .68;
     margin-top: 4px; text-shadow: 0 1px 6px rgba(0,0,0,.7);
   }
-
   .mode-idle { color: #d8e0ec; }
   .mode-aim  { color: var(--aim); }
   .mode-sut  { color: var(--sut); }
   .mode-am   { color: var(--am); }
 
-  /* 손가락 인디케이터 (좌하단) */
+  /* 중앙 조준 레티클 */
+  #reticle {
+    position: absolute; top: 50%; left: 50%; width: 46px; height: 46px;
+    transform: translate(-50%,-50%); opacity: .55;
+  }
+  #reticle::before, #reticle::after {
+    content: ""; position: absolute; background: rgba(255,255,255,.85);
+    box-shadow: 0 0 6px rgba(0,0,0,.6);
+  }
+  #reticle::before { left: 50%; top: 0; width: 1.5px; height: 100%; transform: translateX(-50%); }
+  #reticle::after  { top: 50%; left: 0; height: 1.5px; width: 100%; transform: translateY(-50%); }
+  #reticleDot {
+    position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; border-radius: 50%;
+    transform: translate(-50%,-50%); background: #39e6a0; box-shadow: 0 0 8px #39e6a0;
+  }
+
   .fingers {
     position: absolute; bottom: 30px; left: 38px;
     display: flex; align-items: center; gap: 7px;
@@ -70,13 +76,11 @@
   }
   .fdot {
     width: 9px; height: 9px; border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,.6); background: transparent;
-    transition: all .12s;
+    border: 1.5px solid rgba(255,255,255,.6); background: transparent; transition: all .12s;
   }
   .fdot.on { background: #fff; border-color: #fff; box-shadow: 0 0 9px rgba(255,255,255,.9); }
   .flab { margin-right: 9px; text-shadow: 0 1px 5px rgba(0,0,0,.7); }
 
-  /* 재장전 게이지 (하단 중앙) */
   .cooldown {
     position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%);
     width: 240px; text-align: center; opacity: 0; transition: opacity .2s;
@@ -86,28 +90,24 @@
   .cdtrack { height: 2px; background: rgba(255,255,255,.22); border-radius: 2px; overflow: hidden; }
   .cdfill  { height: 100%; width: 0%; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.8); }
 
-  /* 명중 플래시 */
   #hitFlash {
-    position: absolute; top: 38%; left: 50%; transform: translate(-50%,-50%) scale(1);
+    position: absolute; top: 36%; left: 50%; transform: translate(-50%,-50%) scale(1);
     font-size: 64px; font-weight: 200; letter-spacing: .1em; opacity: 0;
     text-shadow: 0 0 30px rgba(255,255,255,.9), 0 2px 12px rgba(0,0,0,.6);
   }
 
-  /* 시작 화면 */
   #startScreen {
     position: fixed; inset: 0; z-index: 10;
     background: radial-gradient(ellipse at 50% 35%, #14203a 0%, #05070c 70%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; padding: 40px;
   }
-  #startScreen .brand {
-    font-size: 13px; font-weight: 700; letter-spacing: .5em; opacity: .6; margin-bottom: 14px;
-  }
-  #startScreen h1 { font-size: 44px; font-weight: 200; letter-spacing: .02em; margin-bottom: 10px; }
-  #startScreen .sub { font-size: 14px; font-weight: 300; opacity: .65; margin-bottom: 36px; }
+  #startScreen .brand { font-size: 13px; font-weight: 700; letter-spacing: .5em; opacity: .6; margin-bottom: 14px; }
+  #startScreen h1 { font-size: 42px; font-weight: 200; letter-spacing: .02em; margin-bottom: 10px; }
+  #startScreen .sub { font-size: 14px; font-weight: 300; opacity: .65; margin-bottom: 34px; }
   .guide {
-    max-width: 560px; text-align: left; font-size: 13px; font-weight: 300;
-    line-height: 2.05; opacity: .8; margin-bottom: 38px;
+    max-width: 580px; text-align: left; font-size: 13px; font-weight: 300;
+    line-height: 2.05; opacity: .8; margin-bottom: 36px;
   }
   .guide .k { font-weight: 600; opacity: 1; }
   .guide .sut { color: var(--sut); font-weight: 600; }
@@ -116,8 +116,7 @@
     font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: .14em;
     padding: 16px 52px; border-radius: 2px; cursor: pointer;
     background: #fff; color: #05070c; border: none; text-transform: uppercase;
-    transition: transform .12s, box-shadow .12s;
-    box-shadow: 0 10px 40px rgba(255,255,255,.18);
+    transition: transform .12s, box-shadow .12s; box-shadow: 0 10px 40px rgba(255,255,255,.18);
   }
   #startBtn:hover { transform: translateY(-2px); box-shadow: 0 14px 50px rgba(255,255,255,.28); }
   #errorBox { margin-top: 22px; color: #ff8f80; font-size: 12px; max-width: 520px; line-height: 1.7; }
@@ -148,6 +147,7 @@
     <div class="rsub" id="modeSub">주먹을 쥐어 조준하세요</div>
   </div>
 
+  <div id="reticle"><div id="reticleDot"></div></div>
   <div id="hitFlash">HIT</div>
 
   <div class="fingers">
@@ -162,18 +162,18 @@
   </div>
 </div>
 
-<div id="status">GAKGUNG SIMULATOR</div>
+<div id="status">GAKGUNG · FIRST-PERSON</div>
 
 <div id="startScreen">
   <div class="brand">G A K G U N G</div>
   <h1>국궁 활쏘기 시뮬레이터</h1>
-  <div class="sub">MediaPipe Hands &times; Three.js — 손동작 슈팅 트레이서</div>
+  <div class="sub">MediaPipe Hands &times; Three.js — 1인칭 활쏘기 뷰</div>
   <div class="guide">
-    <span class="k">왼손</span>은 앞으로 펴서 발사 기준점, <span class="k">오른손</span>으로 시위를 당깁니다.<br />
-    오른손으로 <span class="k">주먹을 꽉 쥐면</span> 조준 상태가 되고, 양손을 벌릴수록 강하게 당겨집니다.<br />
-    <span class="sut">숫깍지</span> — 주먹에서 엄지·검지·중지를 <span class="k">한 번에 확 펴면</span> 빠르고 평평한 직선 궤적.<br />
+    화면 아래에서 <span class="k">두 팔이 활을 들고</span> 올라옵니다. <span class="k">왼손</span>을 움직여 조준경(Sight)을 과녁에 맞추세요.<br />
+    오른손으로 <span class="k">주먹을 꽉 쥐면</span> 조준 상태가 되고, 양손을 벌릴수록 시위가 팽팽해집니다.<br />
+    <span class="sut">숫깍지</span> — 엄지·검지·중지를 <span class="k">한 번에 확 펴면</span> 빠르고 평평한 직선 궤적.<br />
     <span class="am">암깍지</span> — 검지·중지는 쥔 채 <span class="k">엄지만 위로 튕기면</span> 높이 솟는 곡선 궤적 (연사).<br />
-    멀리 떠 있는 <span class="k">과녁</span>을 맞춰 보세요. 웹캠 권한을 허용해 주세요.
+    웹캠 권한을 허용해 주세요. (조준 방향이 반대면 키보드 <span class="k">X</span> / <span class="k">Y</span> 로 반전)
   </div>
   <button id="startBtn">웹캠 시작</button>
   <div id="errorBox"></div>
@@ -189,16 +189,15 @@
 /* ===== 설정 ===== */
 const CONFIG = {
   GRAVITY: 0.022,
-  // 숫깍지: 빠르고 평평한 직선형
-  SUT_SPEED: 2.6, SUT_SPEED_GAIN: 1.7, SUT_VY: 0.18, SUT_VY_GAIN: 0.22, SUT_COOLDOWN: 1500,
-  // 암깍지: 느리지만 높이 솟는 곡선형
-  AM_SPEED: 0.95, AM_SPEED_GAIN: 0.6, AM_VY: 0.9, AM_VY_GAIN: 0.5, AM_COOLDOWN: 500,
+  SUT_SPEED: 2.7, SUT_SPEED_GAIN: 1.7, SUT_VY: 0.18, SUT_VY_GAIN: 0.22, SUT_COOLDOWN: 1500,
+  AM_SPEED: 1.0,  AM_SPEED_GAIN: 0.6, AM_VY: 0.9,  AM_VY_GAIN: 0.5,  AM_COOLDOWN: 500,
   DRAW_MIN: 0.12, DRAW_MAX: 0.62,
   MAX_TRAIL: 60, MAX_ARROWS: 10,
-  TARGET: { x: 0, y: 6, z: -72, r: 7 },
+  TARGET: { x: 0, y: 1.55, z: -64, r: 7 },
+  AIM_YAW: 0.30, AIM_PITCH: 0.22,            // 조준 범위(rad)
+  AIM_INVERT_X: 1, AIM_INVERT_Y: 1,          // X/Y 키로 반전
 };
 
-/* MediaPipe 21점 손 골격 연결 */
 const HAND_BONES = [
   [0,1],[1,2],[2,3],[3,4],
   [0,5],[5,6],[6,7],[7,8],
@@ -208,28 +207,30 @@ const HAND_BONES = [
   [0,17],
 ];
 
-/* ===== 전역 상태 ===== */
+/* 1인칭 리그 로컬 좌표 (카메라 기준) */
+const BOW_POS    = new THREE.Vector3(0.02, -0.16, -1.5);
+const NOCK_REST  = new THREE.Vector3(0.02, -0.13, -1.30);
+const L_SHOULDER = new THREE.Vector3(-0.40, -1.02, -0.05);
+const R_SHOULDER = new THREE.Vector3( 0.46, -1.02,  0.05);
+const UP = new THREE.Vector3(0, 1, 0);
+const FWD = new THREE.Vector3(0, 0, -1);
+
+/* ===== 전역 ===== */
 let scene, camera, renderer;
-let targetGroup, drawLine, launchReticle, nockedOrb;
+let playerRig, bow, bowString, sight, nockedArrow, leftArm, rightArm, targetGroup;
 const arrows = [];
 
 let state = "IDLE";
 let prevFinger = { thumb: true, index: true, middle: true };
 let curFinger  = { thumb: true, index: true, middle: true };
-let lastFireTime = -99999;
-let currentCooldown = 0;
-let lastFireMode = null;
+let lastFireTime = -99999, currentCooldown = 0, lastFireMode = null;
 let lastShotSpeed = 0, lastShotAngle = 0, lastShotShown = -99999;
 
 let drawPower = 0, drawPowerSmooth = 0, rawDrawDist = 0;
-let latestBowCenter = null, latestDrawPoint = null;
+let aimXraw = 0, aimYraw = 0, aimYaw = 0, aimPitch = 0;
 let handsPresent = { bow: false, draw: false };
 
-let hits = 0;
-let targetPulse = 0;     // 명중 시 펄스
-let hitFlashAt = -99999;
-
-const smoothedNock = new THREE.Vector3(0, 6, 6);
+let hits = 0, targetPulse = 0, hitFlashAt = -99999;
 let showSkeleton = true;
 
 /* ===== Three.js ===== */
@@ -238,35 +239,22 @@ function initThree() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0x000000, 0);   // 투명 — 웹캠 피드가 비쳐 보임
+  renderer.setClearColor(0x000000, 0);
 
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 600);
-  camera.position.set(0, 6, 16);
-  camera.lookAt(0, 6, -40);
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.05, 600);
+  camera.position.set(0, 1.55, 2);          // 어깨/눈높이
+  camera.rotation.order = "YXZ";
+  scene.add(camera);
+
+  // 조명
+  scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x20160e, 1.05));
+  const key = new THREE.DirectionalLight(0xfff2e0, 1.15); key.position.set(-3, 5, 4); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.45); fill.position.set(4, 2, -3); scene.add(fill);
 
   buildTarget();
-
-  // 발사 기준점 레티클 (왼손 위치) — 활을 대체하는 미니멀 글로우 링
-  launchReticle = new THREE.Mesh(
-    new THREE.TorusGeometry(0.7, 0.06, 8, 40),
-    glowMat(0xffffff, 0.85)
-  );
-  launchReticle.visible = false;
-  scene.add(launchReticle);
-
-  // 양손을 잇는 '당김' 라인
-  drawLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
-    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0,
-      blending: THREE.AdditiveBlending, depthWrite: false })
-  );
-  scene.add(drawLine);
-
-  // 조준 중 시위에 걸린 화살(오브)
-  nockedOrb = makeOrb(0xffffff);
-  nockedOrb.visible = false;
-  scene.add(nockedOrb);
+  buildPlayer();
 
   window.addEventListener("resize", onResize);
 }
@@ -279,41 +267,168 @@ function glowMat(color, opacity, additive) {
   });
 }
 
-/* 홀로그램풍 과녁 — 동심 글로우 링 */
+/* 홀로그램풍 동심원 과녁 */
 function buildTarget() {
   targetGroup = new THREE.Group();
-  const radii = [7, 5.4, 3.8, 2.2];
-  radii.forEach((r, i) => {
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(r - 0.16, r, 72),
-      glowMat(0xffffff, 0.34 + i * 0.13, false)
-    );
-    targetGroup.add(ring);
-    // 얇은 글로우 테두리
-    const edge = new THREE.Mesh(
-      new THREE.RingGeometry(r - 0.05, r + 0.05, 72),
-      glowMat(0xeaf3ff, 0.5)
-    );
-    targetGroup.add(edge);
+  [7, 5.4, 3.8, 2.2].forEach((r, i) => {
+    targetGroup.add(new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.16, r, 72), glowMat(0xffffff, 0.34 + i * 0.13, false)));
+    targetGroup.add(new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.05, r + 0.05, 72), glowMat(0xeaf3ff, 0.5)));
   });
-  // 정중앙 — 골드 불스아이
-  const bull = new THREE.Mesh(new THREE.CircleGeometry(1.0, 40), glowMat(0xffd24a, 0.95, false));
-  targetGroup.add(bull);
-  const bullGlow = new THREE.Mesh(new THREE.CircleGeometry(1.7, 40), glowMat(0xffd24a, 0.4));
-  targetGroup.add(bullGlow);
-
+  targetGroup.add(new THREE.Mesh(new THREE.CircleGeometry(1.0, 40), glowMat(0xffd24a, 0.95, false)));
+  targetGroup.add(new THREE.Mesh(new THREE.CircleGeometry(1.7, 40), glowMat(0xffd24a, 0.4)));
+  targetGroup.children.forEach((m) => (m.material.userData.base = m.material.opacity));
   const T = CONFIG.TARGET;
   targetGroup.position.set(T.x, T.y, T.z);
   scene.add(targetGroup);
 }
 
-/* 화살 = 빛나는 오브 (흰 코어 + 색 글로우) */
-function makeOrb(tint) {
+/* ===== 1인칭 플레이어 리그 (카메라의 자식) ===== */
+function buildPlayer() {
+  playerRig = new THREE.Group();
+  camera.add(playerRig);
+
+  bow = buildBow();
+  bow.position.copy(BOW_POS);
+  bow.rotation.z = 0.06;
+  playerRig.add(bow);
+
+  sight = buildSight();
+  bow.add(sight);
+
+  bowString = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]),
+    new THREE.LineBasicMaterial({ color: 0xf4f7ff, transparent: true, opacity: 0.92 })
+  );
+  playerRig.add(bowString);
+
+  nockedArrow = buildArrow(0xe8e2d4);
+  nockedArrow.scale.setScalar(1.05);
+  playerRig.add(nockedArrow);
+
+  leftArm  = makeArm(0x223247);
+  rightArm = makeArm(0x2c2f3a);
+  playerRig.add(leftArm.group, rightArm.group);
+}
+
+/* 매끈한 리커브 보우 */
+function buildBow() {
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })));
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), glowMat(tint, 0.5)));
+  const limbMat  = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 0.35, metalness: 0.25 });
+  const riserMat = new THREE.MeshStandardMaterial({ color: 0x10141b, roughness: 0.35, metalness: 0.7 });
+  const gripMat  = new THREE.MeshStandardMaterial({ color: 0x2a1d12, roughness: 0.95 });
+
+  const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.72, 18), riserMat);
+  g.add(riser);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.26, 18), gripMat);
+  g.add(grip);
+  const window = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.30, 0.05), riserMat);
+  window.position.set(0.06, 0.16, 0);
+  g.add(window);
+  const rest = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.018, 0.045), riserMat);
+  rest.position.set(0.07, 0.05, 0);
+  g.add(rest);
+
+  const tipU = new THREE.Vector3(0, 1.30, 0.12);
+  const tipL = new THREE.Vector3(0, -1.30, 0.12);
+  const upper = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0.34, 0), new THREE.Vector3(0, 0.72, -0.07),
+    new THREE.Vector3(0, 1.05, -0.03), tipU,
+  ]);
+  const lower = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, -0.34, 0), new THREE.Vector3(0, -0.72, -0.07),
+    new THREE.Vector3(0, -1.05, -0.03), tipL,
+  ]);
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(upper, 28, 0.030, 12, false), limbMat));
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(lower, 28, 0.030, 12, false), limbMat));
+
+  g.userData.tipU = tipU;
+  g.userData.tipL = tipL;
   return g;
+}
+
+/* 조준경 (Sight) — 화면 중앙에 위치 */
+function buildSight() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x0e1116, roughness: 0.35, metalness: 0.8 });
+  const ext = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.52), mat);
+  ext.position.set(0.0, 0.16, -0.30);
+  g.add(ext);
+  const drop = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.20, 0.02), mat);
+  drop.position.set(0.0, 0.07, -0.55);
+  g.add(drop);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.052, 0.007, 10, 30),
+    new THREE.MeshStandardMaterial({ color: 0x39e6a0, emissive: 0x18b070, emissiveIntensity: 0.7, metalness: 0.3 })
+  );
+  ring.position.set(0.0, 0.0, -0.55);
+  g.add(ring);
+  const pin = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 10), glowMat(0x6effc0, 1));
+  pin.position.set(0.0, 0.0, -0.55);
+  g.add(pin);
+  return g;
+}
+
+/* 매끈한 화살 (로컬 -Z 진행방향) */
+function buildArrow(tint) {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.017, 0.017, 1.5, 14),
+    new THREE.MeshStandardMaterial({ color: 0xf0ede4, roughness: 0.3, metalness: 0.25 }));
+  shaft.rotation.x = Math.PI / 2;
+  g.add(shaft);
+  const tip = new THREE.Mesh(
+    new THREE.ConeGeometry(0.042, 0.17, 16),
+    new THREE.MeshStandardMaterial({ color: 0xc2cad6, roughness: 0.2, metalness: 0.9 }));
+  tip.rotation.x = -Math.PI / 2; tip.position.z = -0.83;
+  g.add(tip);
+  const nock = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.022, 0.07, 12),
+    new THREE.MeshStandardMaterial({ color: 0x1c2230, roughness: 0.6 }));
+  nock.rotation.x = Math.PI / 2; nock.position.z = 0.78;
+  g.add(nock);
+  const fMat = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.7, side: THREE.DoubleSide });
+  for (let i = 0; i < 3; i++) {
+    const pivot = new THREE.Group();
+    pivot.rotation.z = i * (Math.PI * 2 / 3);
+    const fl = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.085, 0.17), fMat);
+    fl.position.set(0, 0.055, 0.6);
+    pivot.add(fl);
+    g.add(pivot);
+  }
+  return g;
+}
+
+/* 1인칭 팔 */
+function makeArm(sleeveColor) {
+  const skin   = new THREE.MeshStandardMaterial({ color: 0xd8a373, roughness: 0.85 });
+  const sleeve = new THREE.MeshStandardMaterial({ color: sleeveColor, roughness: 0.7, metalness: 0.1 });
+  const g = new THREE.Group();
+  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.066, 1, 16), sleeve);
+  const fore  = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.052, 1, 16), skin);
+  const shoulderJ = new THREE.Mesh(new THREE.SphereGeometry(0.092, 16, 12), sleeve);
+  const elbowJ    = new THREE.Mesh(new THREE.SphereGeometry(0.064, 16, 12), skin);
+  const hand      = new THREE.Mesh(new THREE.SphereGeometry(0.078, 18, 14), skin);
+  hand.scale.set(1, 0.8, 1.18);
+  g.add(upper, fore, shoulderJ, elbowJ, hand);
+  return { group: g, upper, fore, shoulderJ, elbowJ, hand };
+}
+
+function placeBone(mesh, a, b) {
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const len = dir.length();
+  mesh.position.copy(a).addScaledVector(dir, 0.5);
+  mesh.quaternion.setFromUnitVectors(UP, dir.normalize());
+  mesh.scale.set(1, Math.max(len, 0.001), 1);
+}
+function updateArm(arm, s, e, h) {
+  placeBone(arm.upper, s, e);
+  placeBone(arm.fore, e, h);
+  arm.shoulderJ.position.copy(s);
+  arm.elbowJ.position.copy(e);
+  arm.hand.position.copy(h);
+  arm.hand.quaternion.setFromUnitVectors(UP, new THREE.Vector3().subVectors(h, e).normalize());
 }
 
 function onResize() {
@@ -323,26 +438,15 @@ function onResize() {
   sizeFeedCanvas();
 }
 
-/* ===== 좌표 변환 ===== */
-function landmarkToWorld(lm) {
-  return new THREE.Vector3(
-    (lm.x - 0.5) * 14,
-    (0.5 - lm.y) * 9 + 5,
-    6 + (lm.z || 0) * 6
-  );
-}
-function dist3D(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
-}
+/* ===== 손 유틸 ===== */
+function dist3D(a, b) { return Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0)); }
 function handCenter(lms) {
   let x = 0, y = 0, z = 0;
   for (const l of lms) { x += l.x; y += l.y; z += l.z || 0; }
   return { x: x / lms.length, y: y / lms.length, z: z / lms.length };
 }
 
-/* ===== 손가락 구부림 판별 =====
-   - 검지/중지: Tip(8,12)이 자기 MCP(5,9)보다 손목쪽으로 말리면 접힘
-   - 엄지: Tip(4)이 MCP(2)보다 새끼 기저(17)쪽으로 붙으면 접힘 */
+/* ===== 손가락 구부림 판별 ===== */
 function computeFingerStates(lms) {
   const w = lms[0];
   const isIndexFolded  = dist3D(lms[8],  w) < dist3D(lms[5], w);
@@ -364,13 +468,10 @@ function updateStateMachine(f, now) {
     if (isFist) state = "AIMING";
   }
   if (state === "AIMING") {
-    // ① 숫깍지: 엄지+검지+중지가 동시에 펴지는 순간
-    if (allExtRising) {
+    if (allExtRising) {                                  // ① 숫깍지
       if (!onCooldown) fireArrow("sut", now);
       state = "IDLE";
-    }
-    // ② 암깍지: 검지·중지는 쥔 채 엄지만 튕겨 펴지는 순간
-    else if (thumbRising && f.index && f.middle) {
+    } else if (thumbRising && f.index && f.middle) {     // ② 암깍지
       if (!onCooldown) fireArrow("am", now);
       state = "IDLE";
     }
@@ -378,158 +479,159 @@ function updateStateMachine(f, now) {
 }
 
 /* ===== 발사 ===== */
+const _spawn = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
 function fireArrow(mode, now) {
   const p = drawPowerSmooth;
-  const spawn = latestBowCenter ? latestBowCenter.clone() : new THREE.Vector3(0, 6, 6);
+  nockedArrow.getWorldPosition(_spawn);
+  camera.getWorldDirection(_fwd);
 
-  let velX = 0;
-  if (latestBowCenter && latestDrawPoint)
-    velX = THREE.MathUtils.clamp((latestBowCenter.x - latestDrawPoint.x) * 0.04, -0.25, 0.25);
-
-  let velY, velZ, tint;
+  let speed, vy, tint;
   if (mode === "sut") {
-    velZ = -(CONFIG.SUT_SPEED + p * CONFIG.SUT_SPEED_GAIN);
-    velY =  CONFIG.SUT_VY + p * CONFIG.SUT_VY_GAIN;
-    tint = 0xff5a47;
-    currentCooldown = CONFIG.SUT_COOLDOWN;
+    speed = CONFIG.SUT_SPEED + p * CONFIG.SUT_SPEED_GAIN;
+    vy = CONFIG.SUT_VY + p * CONFIG.SUT_VY_GAIN;
+    tint = 0xff5a47; currentCooldown = CONFIG.SUT_COOLDOWN;
   } else {
-    velZ = -(CONFIG.AM_SPEED + p * CONFIG.AM_SPEED_GAIN);
-    velY =  CONFIG.AM_VY + p * CONFIG.AM_VY_GAIN;
-    tint = 0x4a9eff;
-    currentCooldown = CONFIG.AM_COOLDOWN;
+    speed = CONFIG.AM_SPEED + p * CONFIG.AM_SPEED_GAIN;
+    vy = CONFIG.AM_VY + p * CONFIG.AM_VY_GAIN;
+    tint = 0x4a9eff; currentCooldown = CONFIG.AM_COOLDOWN;
   }
 
-  const orb = makeOrb(tint);
-  orb.position.copy(spawn);
+  // 조준 방향 * 속도 + 모드별 상승(아크)
+  const vel = {
+    x: _fwd.x * speed,
+    y: _fwd.y * speed + vy,
+    z: _fwd.z * speed,
+  };
 
-  // 잔상 트레이서: 색 외곽 + 흰 코어
+  const model = buildArrow(tint);
+  model.scale.setScalar(1.4);
+  model.position.copy(_spawn);
+  scene.add(model);
+
   const trailOuter = new THREE.Mesh(new THREE.BufferGeometry(),
     new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.55, depthWrite: false }));
   const trailCore = new THREE.Mesh(new THREE.BufferGeometry(),
     new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9,
       blending: THREE.AdditiveBlending, depthWrite: false }));
+  scene.add(trailOuter, trailCore);
 
-  scene.add(orb, trailOuter, trailCore);
-  arrows.push({
-    orb, trailOuter, trailCore, mode,
-    vel: { x: velX, y: velY, z: velZ },
-    trailPoints: [], lastZ: spawn.z, scored: false,
-  });
+  arrows.push({ model, trailOuter, trailCore, mode, vel,
+    trailPoints: [], lastZ: _spawn.z, scored: false });
   while (arrows.length > CONFIG.MAX_ARROWS) killArrow(arrows[0]);
 
-  lastFireTime = now;
-  lastFireMode = mode;
+  lastFireTime = now; lastFireMode = mode;
   lastShotSpeed = 30 + p * 150;
-  lastShotAngle = Math.round(Math.atan2(velY, -velZ) * 180 / Math.PI);
+  lastShotAngle = Math.round(Math.atan2(vel.y, -vel.z) * 180 / Math.PI);
   lastShotShown = now;
 }
 
 function killArrow(a) {
-  [a.orb, a.trailOuter, a.trailCore].forEach((o) => {
-    o.traverse ? o.traverse((c) => { c.geometry && c.geometry.dispose(); c.material && c.material.dispose(); })
-               : (o.geometry && o.geometry.dispose(), o.material && o.material.dispose());
+  [a.model, a.trailOuter, a.trailCore].forEach((o) => {
+    o.traverse((c) => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
     scene.remove(o);
   });
   const i = arrows.indexOf(a);
   if (i >= 0) arrows.splice(i, 1);
 }
 
-/* ===== 포물선 물리 + 트레이서 갱신 =====
+/* ===== 포물선 물리 + 트레이서 =====
    요구 공식:  y = y + velocityY - (0.5 * g) */
 function updateArrows() {
   const g = CONFIG.GRAVITY, T = CONFIG.TARGET;
   for (let i = arrows.length - 1; i >= 0; i--) {
     const a = arrows[i];
-    const pos = a.orb.position;
+    const pos = a.model.position;
     a.lastZ = pos.z;
 
     pos.x += a.vel.x;
     pos.z += a.vel.z;
-    pos.y += a.vel.y - 0.5 * g;     // y = y + velocityY - (0.5 * g)
+    pos.y += a.vel.y - 0.5 * g;       // y = y + velocityY - (0.5 * g)
     a.vel.y -= g;
 
-    // 과녁 통과 판정
+    a.model.quaternion.setFromUnitVectors(
+      FWD, new THREE.Vector3(a.vel.x, a.vel.y, a.vel.z).normalize());
+
     if (!a.scored && a.lastZ > T.z && pos.z <= T.z) {
-      const d = Math.hypot(pos.x - T.x, pos.y - T.y);
-      if (d <= T.r) registerHit();
+      if (Math.hypot(pos.x - T.x, pos.y - T.y) <= T.r) registerHit();
       a.scored = true;
     }
 
-    // 트레이서(튜브) 갱신
     a.trailPoints.push(pos.clone());
     if (a.trailPoints.length > CONFIG.MAX_TRAIL) a.trailPoints.shift();
     if (a.trailPoints.length >= 2) {
       const curve = new THREE.CatmullRomCurve3(a.trailPoints);
       const seg = Math.min(a.trailPoints.length * 2, 100);
       a.trailOuter.geometry.dispose();
-      a.trailOuter.geometry = new THREE.TubeGeometry(curve, seg, 0.3, 8, false);
+      a.trailOuter.geometry = new THREE.TubeGeometry(curve, seg, 0.22, 8, false);
       a.trailCore.geometry.dispose();
-      a.trailCore.geometry = new THREE.TubeGeometry(curve, seg, 0.11, 6, false);
+      a.trailCore.geometry = new THREE.TubeGeometry(curve, seg, 0.08, 6, false);
     }
 
-    if (pos.y < -10 || pos.z < -170 || Math.abs(pos.x) > 130) killArrow(a);
+    if (pos.y < -14 || pos.z < -160 || Math.abs(pos.x) > 130) killArrow(a);
   }
 }
 
-function registerHit() {
-  hits++;
-  targetPulse = 1;
-  hitFlashAt = performance.now();
+function registerHit() { hits++; targetPulse = 1; hitFlashAt = performance.now(); }
+
+/* ===== 조준 / 시위 / 팔 갱신 ===== */
+const _tipU = new THREE.Vector3(), _tipL = new THREE.Vector3();
+const _nock = new THREE.Vector3(), _lhand = new THREE.Vector3();
+function updateAimAndRig(now) {
+  // 카메라 조준 (왼손 위치 → yaw/pitch)
+  const yawT   = -aimXraw * CONFIG.AIM_YAW   * CONFIG.AIM_INVERT_X;
+  const pitchT = -aimYraw * CONFIG.AIM_PITCH * CONFIG.AIM_INVERT_Y;
+  aimYaw   += (yawT   - aimYaw)   * 0.12;
+  aimPitch += (pitchT - aimPitch) * 0.12;
+  camera.rotation.y = aimYaw;
+  camera.rotation.x = aimPitch;
+
+  // 미세한 호흡 흔들림
+  playerRig.position.set(
+    Math.sin(now * 0.0011) * 0.006,
+    Math.sin(now * 0.0016) * 0.007,
+    0
+  );
+
+  // 시위 당김점 (drawPower 에 비례해 뒤로)
+  const pull = drawPowerSmooth;
+  _nock.copy(NOCK_REST);
+  _nock.z += pull * 0.62;
+  _nock.y += pull * 0.05;
+
+  // 활 끝점(리그 로컬)
+  bow.updateMatrix();
+  _tipU.copy(bow.userData.tipU).applyMatrix4(bow.matrix);
+  _tipL.copy(bow.userData.tipL).applyMatrix4(bow.matrix);
+  bowString.geometry.setFromPoints([_tipU, _nock, _tipL]);
+
+  // 시위에 걸린 화살
+  const justFired = now - lastFireTime < 160;
+  nockedArrow.visible = handsPresent.draw && !justFired;
+  nockedArrow.position.set(_nock.x, _nock.y, _nock.z - 0.78);
+
+  // 왼팔 — 활을 잡음 (거의 고정)
+  _lhand.set(BOW_POS.x + 0.06, BOW_POS.y, BOW_POS.z);
+  const lElbow = new THREE.Vector3().lerpVectors(L_SHOULDER, _lhand, 0.5);
+  lElbow.x -= 0.06; lElbow.y -= 0.10; lElbow.z += 0.04;
+  updateArm(leftArm, L_SHOULDER, lElbow, _lhand);
+
+  // 오른팔 — 시위를 당김 (당김점을 따라감)
+  const rElbow = new THREE.Vector3().lerpVectors(R_SHOULDER, _nock, 0.5);
+  rElbow.x += 0.14; rElbow.y += 0.17;
+  updateArm(rightArm, R_SHOULDER, rElbow, _nock);
 }
 
-/* ===== 발사 기준점 / 당김 라인 시각 ===== */
-function updateAimVisual() {
-  const aiming = state === "AIMING";
-
-  if (latestBowCenter) {
-    launchReticle.visible = true;
-    launchReticle.position.copy(latestBowCenter);
-    launchReticle.lookAt(camera.position);
-    const s = 1 + drawPowerSmooth * 0.9;
-    launchReticle.scale.setScalar(s);
-    launchReticle.material.opacity = 0.45 + drawPowerSmooth * 0.5;
-    launchReticle.rotation.z += 0.04;
-  } else {
-    launchReticle.visible = false;
-  }
-
-  // 당김 라인
-  if (latestBowCenter && latestDrawPoint && handsPresent.draw) {
-    drawLine.geometry.setFromPoints([latestBowCenter, latestDrawPoint]);
-    drawLine.material.opacity = aiming ? 0.3 + drawPowerSmooth * 0.6 : 0.1;
-  } else {
-    drawLine.material.opacity = 0;
-  }
-
-  // 조준 중 시위 화살 오브
-  nockedOrb.visible = aiming && !!latestBowCenter;
-  if (nockedOrb.visible) {
-    let nock;
-    if (latestDrawPoint) {
-      nock = latestBowCenter.clone().lerp(latestDrawPoint, 0.12);
-      nock.z = latestBowCenter.z + 0.4 + drawPowerSmooth * 1.6;
-    } else {
-      nock = latestBowCenter.clone();
-    }
-    smoothedNock.lerp(nock, 0.5);
-    nockedOrb.position.copy(smoothedNock);
-    const s = 0.7 + drawPowerSmooth * 0.8;
-    nockedOrb.scale.setScalar(s);
-  }
-}
-
-function updateTarget() {
+function updateTarget(now) {
   targetPulse *= 0.9;
-  const s = 1 + targetPulse * 0.12 + Math.sin(performance.now() * 0.0015) * 0.012;
+  const s = 1 + targetPulse * 0.12 + Math.sin(now * 0.0015) * 0.012;
   targetGroup.scale.setScalar(s);
   targetGroup.children.forEach((m) => {
-    if (m.material) m.material.opacity = Math.min(1, m.material.userData_base
-      ? m.material.userData_base + targetPulse * 0.4
-      : (m.material.userData_base = m.material.opacity, m.material.opacity));
+    m.material.opacity = Math.min(1, m.material.userData.base + targetPulse * 0.4);
   });
 }
 
-/* ===== 웹캠 피드 + 스켈레톤 ===== */
+/* ===== 웹캠 + 스켈레톤 ===== */
 const feedCanvas = document.getElementById("feed");
 const feedCtx = feedCanvas.getContext("2d");
 function sizeFeedCanvas() {
@@ -548,12 +650,11 @@ function onResults(results) {
     dw = vw * sc; dh = vh * sc;
     ox = (cw - dw) / 2; oy = (ch - dh) / 2;
     feedCtx.save();
-    feedCtx.translate(cw, 0); feedCtx.scale(-1, 1);   // 거울 반전
+    feedCtx.translate(cw, 0); feedCtx.scale(-1, 1);
     feedCtx.drawImage(results.image, ox, oy, dw, dh);
     feedCtx.restore();
   }
 
-  // 손 검출 → 평균 x로 좌/우 구분 (원본영상: 사용자 오른손 = 작은 x)
   let hands = [];
   if (results.multiHandLandmarks)
     for (const lms of results.multiHandLandmarks)
@@ -566,20 +667,22 @@ function onResults(results) {
     if (hands[0].avgX < 0.5) drawHand = hands[0]; else bowHand = hands[0];
   }
 
-  // 스켈레톤 오버레이 (거울 좌표로 직접 그림)
   if (showSkeleton) {
     feedCtx.save();
     feedCtx.translate(cw, 0); feedCtx.scale(-1, 1);
-    if (bowHand)  drawSkeleton(bowHand.lms,  ox, oy, dw, dh, "rgba(150,255,190,.55)");
-    if (drawHand) drawSkeleton(drawHand.lms, ox, oy, dw, dh, "rgba(255,225,140,.6)");
+    if (bowHand)  drawSkeleton(bowHand.lms,  ox, oy, dw, dh, "rgba(150,255,190,.5)");
+    if (drawHand) drawSkeleton(drawHand.lms, ox, oy, dw, dh, "rgba(255,225,140,.55)");
     feedCtx.restore();
   }
 
-  // 상태 갱신
   handsPresent.bow = !!bowHand;
   handsPresent.draw = !!drawHand;
-  latestBowCenter = bowHand ? landmarkToWorld(handCenter(bowHand.lms)) : null;
-  latestDrawPoint = drawHand ? landmarkToWorld(drawHand.lms[2]) : null;
+
+  if (bowHand) {
+    const c = handCenter(bowHand.lms);
+    aimXraw = c.x - 0.5;
+    aimYraw = c.y - 0.5;
+  }
 
   rawDrawDist = (bowHand && drawHand)
     ? dist3D(handCenter(bowHand.lms), drawHand.lms[2]) : 0;
@@ -632,17 +735,14 @@ const el = {
 };
 
 function updateHUD(now) {
-  // 속도 — 발사 직후 0.9초간 발사 속도 고정 표시
   const speed = (now - lastShotShown < 900) ? lastShotSpeed : (30 + drawPowerSmooth * 150);
   el.speedNum.textContent = speed.toFixed(1);
   el.hitNum.textContent = hits;
 
-  // 모드 / 상태
   let label, sub, cls;
   if (now - lastFireTime < 600 && lastFireMode) {
     label = lastFireMode === "sut" ? "숫깍지" : "암깍지";
-    sub = "발사각 " + lastShotAngle + "°";
-    cls = lastFireMode;
+    sub = "발사각 " + lastShotAngle + "°"; cls = lastFireMode;
   } else if (state === "AIMING") {
     label = "조준"; sub = "당길수록 강하게"; cls = "aim";
   } else {
@@ -653,12 +753,10 @@ function updateHUD(now) {
   el.modeValue.className = "rvalue mode mode-" + cls;
   el.modeSub.textContent = sub;
 
-  // 손가락 인디케이터
   el.fdThumb.classList.toggle("on", curFinger.thumb);
   el.fdIndex.classList.toggle("on", curFinger.index);
   el.fdMiddle.classList.toggle("on", curFinger.middle);
 
-  // 재장전
   const cdLeft = Math.max(0, lastFireTime + currentCooldown - now);
   if (cdLeft > 0 && currentCooldown > 0) {
     el.cooldownWrap.classList.add("show");
@@ -667,13 +765,11 @@ function updateHUD(now) {
     el.cooldownWrap.classList.remove("show");
   }
 
-  // 명중 플래시
   const fa = now - hitFlashAt;
   if (fa < 700) {
     const t = fa / 700;
     el.hitFlash.style.opacity = (1 - t).toFixed(2);
-    el.hitFlash.style.transform =
-      "translate(-50%,-50%) scale(" + (1 + t * 0.5).toFixed(3) + ")";
+    el.hitFlash.style.transform = "translate(-50%,-50%) scale(" + (1 + t * 0.5).toFixed(3) + ")";
   } else {
     el.hitFlash.style.opacity = 0;
   }
@@ -686,8 +782,8 @@ function animate() {
   drawPowerSmooth += (drawPower - drawPowerSmooth) * 0.3;
 
   updateArrows();
-  updateAimVisual();
-  updateTarget();
+  updateAimAndRig(now);
+  updateTarget(now);
   updateHUD(now);
 
   renderer.render(scene, camera);
@@ -724,7 +820,7 @@ async function startCamera() {
     });
     await mpCamera.start();
     document.getElementById("startScreen").style.display = "none";
-    el.status.textContent = "GAKGUNG SIMULATOR";
+    el.status.textContent = "GAKGUNG · FIRST-PERSON";
   } catch (e) {
     errBox.textContent = "웹캠을 시작할 수 없습니다: " + (e && e.message ? e.message : e) +
       " — 카메라 권한을 허용하거나 localhost(http)로 실행해 보세요.";
@@ -738,7 +834,10 @@ initThree();
 animate();
 document.getElementById("startBtn").addEventListener("click", startCamera);
 window.addEventListener("keydown", (e) => {
-  if (e.key.toLowerCase() === "h") showSkeleton = !showSkeleton;
+  const k = e.key.toLowerCase();
+  if (k === "h") showSkeleton = !showSkeleton;
+  if (k === "x") CONFIG.AIM_INVERT_X *= -1;
+  if (k === "y") CONFIG.AIM_INVERT_Y *= -1;
 });
 </script>
 </body>
