@@ -315,21 +315,21 @@
   .simCorner {
     position: absolute;
     color: rgba(255,255,255,.92);
-    font-size: 11px; letter-spacing: 0;
+    font-size: 14px; letter-spacing: -0.02em;
     text-transform: uppercase;
     text-shadow: 0 2px 10px rgba(0,0,0,.7);
-    line-height: 1.55;
+    line-height: 1.6;
   }
-  .simCorner.tl { top: 22px;    left: 36px; }
-  .simCorner.tr { top: 22px;    right: 36px; text-align: right; }
-  .simCorner.bl { bottom: 24px; left: 36px; }
-  .simCorner.br { bottom: 24px; right: 36px; text-align: right; }
-  .simCorner .k { color: rgba(255,255,255,.55); }
-  .simCorner .v { color: #ffffff; font-variant-numeric: tabular-nums; }
-  .simCorner .v.accent { color: var(--accent); }
+  .simCorner.tl { top: 26px;    left: 36px; }
+  .simCorner.tr { top: 26px;    right: 36px; text-align: right; }
+  .simCorner.bl { bottom: 28px; left: 36px; }
+  .simCorner.br { bottom: 28px; right: 36px; text-align: right; }
+  .simCorner .k { color: rgba(255,255,255,.6); font-size: 12px; }
+  .simCorner .v { color: #ffffff; font-variant-numeric: tabular-nums; font-size: 15px; }
+  .simCorner .v.accent { color: var(--accent); font-size: 17px; font-weight: 700; }
   .simCornerDraw {
-    width: 120px; height: 2px; background: rgba(255,255,255,.25);
-    margin-top: 6px; margin-left: auto;
+    width: 140px; height: 2px; background: rgba(255,255,255,.25);
+    margin-top: 8px; margin-left: auto;
   }
   .simCornerDraw > span {
     display: block; height: 100%; background: #ffffff;
@@ -382,11 +382,15 @@
     #simPhase { font-size: 32px; }
     #simStability { font-size: 12px; }
     #simReticle { width: 180px; height: 180px; }
+    .simCorner { font-size: 12px; }
+    .simCorner .k { font-size: 11px; }
+    .simCorner .v { font-size: 13px; }
+    .simCorner .v.accent { font-size: 15px; }
     .simCorner.tl, .simCorner.bl { left: 16px; }
     .simCorner.tr, .simCorner.br { right: 16px; }
     .simCorner.tl, .simCorner.tr { top: 14px; }
     .simCorner.bl, .simCorner.br { bottom: 14px; }
-    .simCornerDraw { width: 96px; }
+    .simCornerDraw { width: 110px; }
     body.sim #webcam {
       width: 110px; height: 82px;
       right: 12px; bottom: 12px;
@@ -596,13 +600,12 @@ const CONFIG = {
   MAX_ARROWS: 14,                        // max concurrent arrows
 };
 
-/* Moving target settings — single rectangular Korean 과녁 (HIT/MISS only).
-   The hit zone is defined by halfW/halfH from the target's moving center. */
+/* Moving target settings — single circular Korean 과녁 (HIT/MISS only).
+   The hit zone is the disc of `radius` around the target's moving center. */
 const TARGET = {
   baseX: 0, y: 7, z: -100,                       // base position (far away)
   moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // horizontal/vertical amplitude · speed
-  halfW: 3.6,                                    // hit-zone half-width
-  halfH: 4.4,                                    // hit-zone half-height
+  radius: 3.6,                                   // hit-zone radius
 };
 
 /* =========================================================================
@@ -1150,18 +1153,16 @@ function makeArrow(color) {
   return g;
 }
 
-/* Distant target — simplified Korean 과녁 (single rectangular face).
-   Soft cream face, dark hairline border, small central dot. No score rings;
-   any arrow landing within (±halfW, ±halfH) is a HIT, otherwise MISS. */
+/* Distant target — simplified Korean 과녁 (single circular face).
+   Soft cream disc, dark hairline ring border, small central dot. No score
+   rings; any arrow landing within `radius` of center is a HIT, otherwise MISS. */
 function buildTarget() {
   targetGroup = new THREE.Group();
+  const r = TARGET.radius;
 
-  const w = TARGET.halfW * 2;
-  const h = TARGET.halfH * 2;
-
-  // Face panel — slight transparency so it blends with the photo background
+  // Face disc — slight transparency so it blends with the photo background
   const face = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, h),
+    new THREE.CircleGeometry(r, 64),
     new THREE.MeshStandardMaterial({
       color: 0xf5efe2, roughness: 0.95, side: THREE.DoubleSide,
       transparent: true, opacity: 0.78,
@@ -1170,18 +1171,13 @@ function buildTarget() {
   face.position.z = 0;
   targetGroup.add(face);
 
-  // Thin dark border, four edge bars
-  const borderMat = new THREE.MeshBasicMaterial({ color: 0x191919 });
-  const t = 0.08;
-  const top    = new THREE.Mesh(new THREE.PlaneGeometry(w + t * 2, t), borderMat);
-  const bot    = new THREE.Mesh(new THREE.PlaneGeometry(w + t * 2, t), borderMat);
-  const left   = new THREE.Mesh(new THREE.PlaneGeometry(t, h),         borderMat);
-  const right  = new THREE.Mesh(new THREE.PlaneGeometry(t, h),         borderMat);
-  top.position.set(0,  TARGET.halfH + t / 2, 0.01);
-  bot.position.set(0, -TARGET.halfH - t / 2, 0.01);
-  left.position.set(-TARGET.halfW - t / 2, 0, 0.01);
-  right.position.set( TARGET.halfW + t / 2, 0, 0.01);
-  targetGroup.add(top, bot, left, right);
+  // Thin dark ring border
+  const border = new THREE.Mesh(
+    new THREE.RingGeometry(r, r + 0.08, 64),
+    new THREE.MeshBasicMaterial({ color: 0x191919, side: THREE.DoubleSide })
+  );
+  border.position.z = 0.01;
+  targetGroup.add(border);
 
   // Visual focus dot — purely decorative, not a scoring zone
   const dot = new THREE.Mesh(
@@ -1191,22 +1187,22 @@ function buildTarget() {
   dot.position.z = 0.02;
   targetGroup.add(dot);
 
-  // Slim support post
+  // Slim support post (positioned below the disc)
   const post = new THREE.Mesh(
     new THREE.CylinderGeometry(0.14, 0.18, 7.5, 10),
     new THREE.MeshStandardMaterial({ color: 0x191919, roughness: 1 })
   );
-  post.position.set(0, -TARGET.halfH - 4, -0.3);
+  post.position.set(0, -r - 4, -0.3);
   targetGroup.add(post);
 
   targetGroup.position.set(TARGET.baseX, TARGET.y, TARGET.z);
   scene.add(targetGroup);
 }
 
-/* HIT (1) if the arrow crossed inside the rectangular hit-zone, else MISS (0).
+/* HIT (1) if the arrow crossed inside the circular hit-zone, else MISS (0).
    dx, dy = absolute offsets of the arrow's crossing point from the target center. */
 function judgeHit(dx, dy) {
-  return (dx <= TARGET.halfW && dy <= TARGET.halfH) ? 1 : 0;
+  return (Math.hypot(dx, dy) <= TARGET.radius) ? 1 : 0;
 }
 
 /* =========================================================================
@@ -1706,10 +1702,10 @@ function updateHUD(now) {
 
   // ── Hit dot — visualises the landing point on the reticle ──
   if (fa < 1400 && lastShotResult) {
-    // Map the (offX, offY) landing point inside ±halfW × ±halfH to the reticle's
-    // 240px circle.  Out-of-zone misses end up just outside the rim.
-    const nx = lastHitOffsetX / TARGET.halfW;     // -∞ .. +∞ (1.0 = edge)
-    const ny = lastHitOffsetY / TARGET.halfH;
+    // Map the (offX, offY) landing point inside the circular ±radius zone
+    // to the reticle's 240px disc.  Out-of-zone misses end up outside the rim.
+    const nx = lastHitOffsetX / TARGET.radius;    // -∞ .. +∞ (1.0 = edge)
+    const ny = lastHitOffsetY / TARGET.radius;
     // The 3D scene is mirrored via CSS scaleX(-1) on the canvas, but the hitDot
     // overlay lives outside that flipped layer — flip x here to match the photo view.
     const px = -nx * 90;                          // 90px ≈ inner rim of reticle
