@@ -817,9 +817,11 @@ function initThree() {
   scene.fog = new THREE.Fog(0xf8f8f8, 70, 320);
 
   // First-person view — camera sits roughly where the archer's eye would be,
-  // just behind the typical bow-hand position (latestBowCenter hovers around y≈5, z≈3).
+  // pulled back far enough that the drawn-back nock (smoothedNock.z can reach
+  // bow.z + 4.8) and the fletch behind it stay comfortably in front of the
+  // near plane and don't dominate the frame.
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 600);
-  camera.position.set(0, 5.5, 9);
+  camera.position.set(0, 5.5, 13);
   camera.lookAt(0, 5.5, -100);
 
   // Lighting
@@ -898,26 +900,45 @@ function onResize() {
   if (renderTarget) renderTarget.setSize(window.innerWidth, window.innerHeight);
 }
 
-/* Arrow mesh (local -Z points forward → aligned via lookAt to travel direction) */
+/* Arrow mesh.
+   Local axis convention: shaft along Z, HEAD on -Z (forward), FLETCH on +Z (back).
+   After lookAt(target) on the parent group, local -Z aligns with the target
+   direction — so the head (and the arrow's flight) point toward `target`.
+   Group origin sits at the geometric center so projectile physics can use
+   the group position as the arrow's tracked point. */
 function makeArrow(color) {
   const g = new THREE.Group();
+  const len = 4.0;
+  const half = len / 2;
+
   const shaft = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8),
+    new THREE.CylinderGeometry(0.05, 0.05, len, 10),
     new THREE.MeshStandardMaterial({ color: 0x191919 })
   );
-  shaft.rotation.x = Math.PI / 2;                 // align Y axis → Z axis
+  shaft.rotation.x = Math.PI / 2;                       // shaft along Z
+
+  // Arrowhead — clearly placed on -Z, slightly oversized so the forward
+  // direction reads at a glance even up close in first-person view.
+  const headLen = 0.6;
   const head = new THREE.Mesh(
-    new THREE.ConeGeometry(0.16, 0.5, 10),
+    new THREE.ConeGeometry(0.18, headLen, 12),
     new THREE.MeshStandardMaterial({ color })
   );
-  head.rotation.x = -Math.PI / 2;                 // tip faces -Z
-  head.position.z = -1.35;
-  const fletch = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.02, 0.42),
-    new THREE.MeshStandardMaterial({ color })
-  );
-  fletch.position.z = 0.95;
-  g.add(shaft, head, fletch);
+  head.rotation.x = -Math.PI / 2;                       // tip on -Z
+  head.position.z = -half - headLen / 2;                // sits forward of shaft
+
+  // Crossed vanes for the fletch — looks like a real fletching from any angle
+  // and avoids the "flat plate facing the camera" illusion that the old
+  // single-box fletching produced in first-person.
+  const vaneMat = new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide });
+  const vaneGeo = new THREE.BoxGeometry(0.4, 0.02, 0.5);
+  const v1 = new THREE.Mesh(vaneGeo, vaneMat);
+  const v2 = new THREE.Mesh(vaneGeo, vaneMat);
+  v2.rotation.z = Math.PI / 2;
+  v1.position.z = half - 0.3;
+  v2.position.z = half - 0.3;
+
+  g.add(shaft, head, v1, v2);
   return g;
 }
 
