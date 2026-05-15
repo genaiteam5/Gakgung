@@ -29,37 +29,28 @@
   /* Three.js canvas — horizontally flipped (mirror mode) */
   #three { position: fixed; inset: 0; transform: scaleX(-1); }
 
-  /* Webcam debug canvas (bottom-right PIP) — only visible during simulation */
+  /* Webcam debug canvas (bottom-right PIP) */
   #webcam {
-    position: fixed; right: 24px; bottom: 24px;
-    width: 200px; height: 150px;
-    border: 1px solid var(--line);
+    position: fixed; right: 16px; bottom: 16px;
+    width: 320px; height: 240px;
+    border: 1px solid var(--text);
     background: #000; z-index: 20;
-    display: none;
   }
   #webcamLabel {
-    position: fixed; right: 28px; bottom: 180px; z-index: 21;
-    font-size: 9px; color: var(--muted);
+    position: fixed; right: 20px; bottom: 260px; z-index: 21;
+    font-size: 10px; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0;
-    display: none;
   }
-  body.sim #webcam, body.sim #webcamLabel { display: block; }
 
-  /* ───────── In-simulation HUD (dense panel) ─────────
-     Hidden on the hero/landing screen; appears once a breath mode is
-     selected and the body gets the .sim class. */
+  /* Top UI panel */
   #ui {
-    position: fixed; top: 80px; left: 36px; right: 380px; z-index: 20;
-    display: none;
-    flex-direction: column; gap: 8px;
-    pointer-events: none;
+    position: fixed; top: 16px; left: 16px; right: 360px; z-index: 20;
+    display: flex; flex-direction: column; gap: 8px;
   }
-  body.sim #ui { display: flex; }
   .panel {
     background: var(--surface);
     border: 1px solid var(--text);
     padding: 16px 20px;
-    pointer-events: auto;
   }
   .title {
     font-size: 11px; font-weight: 700; color: var(--text);
@@ -88,6 +79,7 @@
     font-size: 10px; color: var(--muted);
     margin-left: 2px; text-transform: uppercase;
   }
+
   .state {
     font-size: 12px; font-weight: 700; padding: 4px 10px;
     border: 1px solid var(--text);
@@ -98,6 +90,7 @@
   .state.aim  { color: var(--accent); border-color: var(--accent); }
   .state.sut  { color: var(--bg);  background: var(--accent); border-color: var(--accent); }
   .state.am   { color: var(--bg);  background: var(--text);   border-color: var(--text); }
+
   .chips { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
   .chip {
     font-size: 10px; padding: 3px 8px;
@@ -115,134 +108,55 @@
     line-height: 1.6; text-transform: uppercase;
   }
 
-  /* ───────── Top navigation (matches the seewi homepage reference) ───────── */
-  #topNav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 55;
-    display: grid; grid-template-columns: 1fr auto 1fr;
-    align-items: center; padding: 22px 36px;
-    font-size: 12px; letter-spacing: -0.04em;
-    pointer-events: none;
-  }
-  #topNav > div { display: flex; align-items: center; gap: 28px; pointer-events: auto; }
-  #topNav .navRight { justify-content: flex-end; }
-  #topNav .navCenter { justify-content: center; }
-  .navItem, .navWordmark, #navBegin {
-    color: var(--muted); cursor: pointer;
-    text-decoration: none; font-family: inherit;
-    background: none; border: none; padding: 0;
-    font-size: 12px; letter-spacing: -0.04em;
-  }
-  .navItem.active { color: var(--text); }
-  .navItem:hover, #navBegin:hover { color: var(--text); }
-  .navWordmark {
-    color: var(--text); font-weight: 700; letter-spacing: 0.04em;
-  }
-  #navBegin { color: var(--text); }
-
-  /* ───────── Start screen — hero view + mode panel ───────── */
+  /* Start screen */
   #startScreen {
     position: fixed; inset: 0; z-index: 50;
-    background: transparent;
-    display: block; padding: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 40px;
   }
-  /* The hero view is the default landing layout */
-  #heroView {
-    width: 100%; height: 100%;
-    display: grid; grid-template-columns: 1fr 1fr;
-    padding: 110px 80px 80px 80px;
+  #startScreen h1 {
+    font-size: 36px; color: var(--text); margin-bottom: 8px;
+    font-weight: 700; letter-spacing: -0.08em;
   }
-  #startScreen.modes #heroView { display: none; }
-  .heroLeft {
-    display: flex; flex-direction: column;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding-top: 40px;
+  #startScreen h1.logo {
+    margin-bottom: 14px;
+    line-height: 0;
   }
-  .heroLeft h1.logo { margin: 0; line-height: 0; }
-  .heroLeft h1.logo img {
-    width: 360px; max-width: 38vw; height: auto;
+  #startScreen h1.logo img {
+    width: 320px; max-width: 60vw; height: auto;
     display: block;
   }
-  .heroSlogan {
-    font-size: clamp(28px, 3.8vw, 56px);
-    line-height: 1.15;
-    letter-spacing: -0.08em;
-    color: var(--text);
-    margin-top: 32px;
-  }
-  .heroCopy {
-    font-size: 10px; color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0;
-  }
-  .heroRight { position: relative; }
-  /* Decorative ring behind the 3D bow */
-  .heroCircle {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: clamp(360px, 38vw, 620px);
-    height: clamp(360px, 38vw, 620px);
-    border: 1px solid var(--line);
-    border-radius: 50%;
-    pointer-events: none;
-  }
-
-  /* Mode selection — only visible after "Begin →" is clicked */
-  #modeView {
-    width: 100%; height: 100%;
-    display: none;
-    flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 120px 80px 80px 80px;
-    gap: 14px; text-align: left;
-  }
-  #startScreen.modes #modeView { display: flex; }
-  .modeViewTitle {
-    font-size: 13px; color: var(--text); font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0; align-self: flex-start;
-    max-width: 720px; margin: 0 auto; width: 100%;
-  }
-  .modeViewHint {
-    font-size: 13px; color: var(--muted);
-    max-width: 720px; margin: 0 auto 18px auto; width: 100%;
-  }
-  .modeBackBtn {
-    margin-top: 8px;
-    font-family: inherit; font-size: 11px; color: var(--muted);
-    background: transparent; border: none; cursor: pointer;
-    text-transform: uppercase; letter-spacing: 0;
-    align-self: flex-start;
-    max-width: 720px; width: 100%; margin: 8px auto 0 auto;
-  }
-  .modeBackBtn:hover { color: var(--text); }
   .guide {
     max-width: 640px; text-align: left; font-size: 13px; line-height: 1.5;
     color: var(--text); margin-bottom: 26px;
   }
   .guide b.sut { color: var(--accent); }
   .guide b.am  { color: var(--text); }
+  #startBtn {
+    font-family: inherit; font-size: 13px; font-weight: 700;
+    padding: 14px 40px; cursor: pointer;
+    background: var(--text); color: var(--bg); border: 1px solid var(--text);
+    text-transform: uppercase; letter-spacing: -0.04em;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  #startBtn:hover { background: var(--accent); border-color: var(--accent); }
   #errorBox {
-    position: fixed; bottom: 24px; left: 36px;
-    color: var(--accent);
-    font-size: 11px; max-width: 560px; line-height: 1.5;
-    z-index: 60;
+    margin-top: 18px; color: var(--accent);
+    font-size: 12px; max-width: 560px; line-height: 1.5;
   }
   #status {
-    position: fixed; left: 36px; bottom: 24px; z-index: 20;
+    position: fixed; left: 16px; bottom: 16px; z-index: 20;
     font-size: 10px; color: var(--muted);
-    text-transform: uppercase; opacity: 0;
+    text-transform: uppercase;
   }
-  body.sim #status { opacity: 1; }
-  /* HIT / MISS center flash */
+  /* Hit '+score' flash */
   #hitFlash {
-    position: fixed; top: 38%; left: 50%; transform: translate(-50%,-50%);
-    z-index: 20; font-size: 72px; font-weight: 700; color: var(--text);
-    letter-spacing: -0.1em;
+    position: fixed; top: 30%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 20; font-size: 64px; font-weight: 700; color: var(--accent);
+    letter-spacing: -0.08em;
     opacity: 0; pointer-events: none;
   }
-  #hitFlash.miss { color: var(--muted); }
-  #hitFlash.hit  { color: var(--accent); }
 
   /* === Breath training — home menu tiles === */
   #startScreen h2 {
@@ -296,30 +210,31 @@
     align-self: center;
   }
 
-  /* === Breath training — minimal HUD (shape ring + timer) === */
+  /* === Breath training — mini HUD (Three.js shape progress ring + timer) === */
   #medHud {
-    position: fixed; top: 80px; right: 36px; z-index: 21;
-    width: 140px; padding: 0;
-    background: transparent; border: none;
+    position: fixed; top: 16px; right: 16px; z-index: 21;
+    width: 180px; padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--text);
     display: none; flex-direction: column; align-items: center;
   }
   #medHud.show { display: flex; }
   #medMode {
-    font-size: 9px; font-weight: 700; color: var(--muted);
-    letter-spacing: 0; margin-bottom: 8px; text-align: center;
+    font-size: 10px; font-weight: 700; color: var(--accent);
+    letter-spacing: 0; margin-bottom: 10px; text-align: center;
     text-transform: uppercase;
   }
-  #medCanvasWrap { position: relative; width: 110px; height: 110px; }
-  #medCanvas { width: 110px; height: 110px; display: block; }
+  #medCanvasWrap { position: relative; width: 140px; height: 140px; }
+  #medCanvas { width: 140px; height: 140px; display: block; }
   #medTimer {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 28px; font-weight: 700; color: var(--text);
+    font-size: 36px; font-weight: 700; color: var(--text);
     letter-spacing: -0.08em;
     pointer-events: none; font-variant-numeric: tabular-nums;
   }
   #medLabel {
-    margin-top: 6px; font-size: 10px; color: var(--muted);
+    margin-top: 8px; font-size: 11px; color: var(--text);
     letter-spacing: 0; font-weight: 700;
     text-transform: uppercase;
   }
@@ -329,7 +244,7 @@
     50%      { opacity: 0.45; }
   }
   #medTimer.ready {
-    color: var(--accent); font-size: 22px;
+    color: var(--accent); font-size: 28px;
     animation: readyPulse 1s ease-in-out infinite;
   }
   #medLabel.ready { color: var(--accent); }
@@ -340,36 +255,22 @@
 <!-- 3D scene (mirror-flipped) -->
 <canvas id="three"></canvas>
 
-<!-- Webcam + skeleton debug overlay (sim only) -->
-<div id="webcamLabel">Webcam debug</div>
+<!-- Webcam + skeleton debug overlay -->
+<div id="webcamLabel">Webcam debug (mirror)</div>
 <canvas id="webcam" width="320" height="240"></canvas>
 
 <!-- Hidden video element for MediaPipe input -->
 <video class="input_video" playsinline muted></video>
 
-<!-- Top navigation (matches seewi homepage) -->
-<nav id="topNav">
-  <div class="navGroup navLeft">
-    <button class="navItem active" data-nav="home">Home</button>
-    <button class="navItem" data-nav="product">Product</button>
-    <button class="navItem" data-nav="simulation">Simulation</button>
-  </div>
-  <div class="navGroup navCenter">
-    <span class="navWordmark">SEEWI</span>
-  </div>
-  <div class="navGroup navRight">
-    <button id="navBegin">Begin →</button>
-  </div>
-</nav>
-
-<!-- In-sim dense HUD (restored from pre-hero version, adapted for HIT/MISS) -->
+<!-- Top HUD -->
 <div id="ui">
   <div class="panel">
-    <div class="title">SEEWI — Live Status</div>
+    <div class="title">Korean Archery Simulator — Live Status</div>
     <div class="row">
-      <span class="label">Hits</span>
+      <span class="label">Target score</span>
       <span id="scoreVal" class="score">0</span>
-      <span id="hitInfo" class="val" style="width:auto; margin-left:auto">of 0 shots</span>
+      <span class="scoreUnit">pts</span>
+      <span id="hitInfo" class="val" style="width:auto; margin-left:auto">Hits 0 / Shots 0</span>
     </div>
     <div class="row">
       <span class="label">Draw distance</span>
@@ -415,53 +316,40 @@
   <div id="medLabel">Idle</div>
 </div>
 
-<!-- Home screen — hero on landing, breath-mode tiles after "Begin →". -->
-<div id="startScreen" class="hero">
-  <!-- Hero view — full-bleed landing matching the seewi homepage -->
-  <div id="heroView">
-    <div class="heroLeft">
-      <h1 class="logo"><img src="images/seewi%20logo.png" alt="seewi" /></h1>
-      <p class="heroSlogan">Aim inward,<br />find your stillness.</p>
-      <p class="heroCopy">© 2026 SEEWI ALL RIGHTS RESERVED</p>
-    </div>
-    <div class="heroRight">
-      <div class="heroCircle"></div>
-    </div>
+<!-- Home screen: select a breathing mode to start the archery simulation -->
+<div id="startScreen">
+  <h1 class="logo"><img src="images/seewi%20logo.png" alt="seewi" /></h1>
+  <h2>Select Breathing Mode</h2>
+  <p class="subtitle">
+    Click a tile to activate its breathing mode and start the simulation.<br />
+    Draw the bow and a breathing guide appears at the top-right — it runs <b style="color:var(--text)">one cycle</b>, and the <b style="color:var(--accent)">FIRE signal</b> appears the moment the cycle ends.
+  </p>
+  <div class="modeTiles">
+    <button class="modeTile" data-mode="box">
+      <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
+        <rect x="4" y="4" width="42" height="42" rx="4" fill="none" stroke="#191919" stroke-width="4"/>
+      </svg>
+      <div class="tSub">BALANCE · 4 · 4 · 4 · 4</div>
+      <div class="tName">Box Breath</div>
+      <div class="tDesc">4s inhale → 4s hold → 4s exhale → 4s hold. A balanced rhythm that settles tremor before the release.</div>
+    </button>
+    <button class="modeTile" data-mode="natural">
+      <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
+        <circle cx="25" cy="25" r="21" fill="none" stroke="#191919" stroke-width="4"/>
+      </svg>
+      <div class="tSub">FOCUS · 2 · 2 · 3</div>
+      <div class="tName">Natural Pause</div>
+      <div class="tDesc">Short inhale → half exhale → 2–3s hold. The pause is the moment of sharpest focus — a practical archery rhythm.</div>
+    </button>
+    <button class="modeTile" data-mode="478">
+      <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
+        <polygon points="25,5 45,42 5,42" fill="none" stroke="#191919" stroke-width="4" stroke-linejoin="round"/>
+      </svg>
+      <div class="tSub">CALM · 4 · 7 · 8</div>
+      <div class="tName">4-7-8 Breath</div>
+      <div class="tDesc">4s inhale → 7s hold → 8s long exhale. Deep relaxation that fully calms residual sway.</div>
+    </button>
   </div>
-
-  <!-- Breath-mode selection — only after Begin is clicked -->
-  <div id="modeView">
-    <div class="modeViewTitle">Select Breathing Mode</div>
-    <p class="modeViewHint">Choose a rhythm. Once tracking starts, draw the bow to enter the cycle — the FIRE signal appears at the end of one cycle.</p>
-    <div class="modeTiles">
-      <button class="modeTile" data-mode="box">
-        <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
-          <rect x="4" y="4" width="42" height="42" rx="4" fill="none" stroke="#191919" stroke-width="4"/>
-        </svg>
-        <div class="tSub">BALANCE · 4 · 4 · 4 · 4</div>
-        <div class="tName">Box Breath</div>
-        <div class="tDesc">4s inhale → 4s hold → 4s exhale → 4s hold. A balanced rhythm that settles tremor before the release.</div>
-      </button>
-      <button class="modeTile" data-mode="natural">
-        <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
-          <circle cx="25" cy="25" r="21" fill="none" stroke="#191919" stroke-width="4"/>
-        </svg>
-        <div class="tSub">FOCUS · 2 · 2 · 3</div>
-        <div class="tName">Natural Pause</div>
-        <div class="tDesc">Short inhale → half exhale → 2–3s hold. The pause is the moment of sharpest focus — a practical archery rhythm.</div>
-      </button>
-      <button class="modeTile" data-mode="478">
-        <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
-          <polygon points="25,5 45,42 5,42" fill="none" stroke="#191919" stroke-width="4" stroke-linejoin="round"/>
-        </svg>
-        <div class="tSub">CALM · 4 · 7 · 8</div>
-        <div class="tName">4-7-8 Breath</div>
-        <div class="tDesc">4s inhale → 7s hold → 8s long exhale. Deep relaxation that fully calms residual sway.</div>
-      </button>
-    </div>
-    <button id="modeBack" class="modeBackBtn">← Back</button>
-  </div>
-
   <div id="errorBox"></div>
 </div>
 
@@ -496,12 +384,11 @@ const CONFIG = {
   MAX_ARROWS: 14,                        // max concurrent arrows
 };
 
-/* Moving target settings — single rectangular Korean 과녁 (HIT/MISS only) */
+/* Moving target settings */
 const TARGET = {
   baseX: 0, y: 7, z: -100,                       // base position (far away)
   moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // horizontal/vertical amplitude · speed
-  halfW: 3.6,                                    // hit-zone half-width  (HIT inside, MISS outside)
-  halfH: 4.5,                                    // hit-zone half-height
+  rings: [[0.8, 10], [1.6, 8], [2.4, 6], [3.2, 4], [4.0, 2]],  // [radius, points] inner → outer
 };
 
 /* =========================================================================
@@ -844,15 +731,6 @@ let stableThumb = true, stableIndex = true, stableMiddle = true;
 // Whether the breath HUD is shown — only while aiming + drawing
 let breathHudShown = false;
 
-// App state — drives the camera/bow pose: 'hero' for landing/mode selection,
-// 'sim' once a breathing mode is selected and tracking has started.
-let appState = "hero";
-const HERO_BOW_POS = new THREE.Vector3(-4.5, 5.2, 1);   // bow sits on the right of the canvas (CSS scaleX(-1) flips x)
-const HERO_CAM_POS = new THREE.Vector3(0, 5.2, 12);
-const HERO_LOOK_AT = new THREE.Vector3(-4.5, 5.2, 1);
-const SIM_CAM_POS  = new THREE.Vector3(0, 5.5, 13);
-const SIM_LOOK_AT  = new THREE.Vector3(0, 5.5, -100);
-
 // Misfire-prevention safeguards (tuning points)
 const MIN_AIM_MS = 250;                  // min hold duration after entering AIMING (ms)
 const MIN_DRAW_POWER = 0.18;             // min draw power required to allow firing (0–1)
@@ -936,31 +814,44 @@ function initThree() {
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf8f8f8);
-  scene.fog = new THREE.Fog(0xf8f8f8, 90, 280);
+  scene.fog = new THREE.Fog(0xf8f8f8, 70, 320);
 
-  // Camera starts in the hero pose. Switches to the first-person sim pose
-  // when a breathing mode is picked (see setAppState).
-  camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 600);
-  camera.position.copy(HERO_CAM_POS);
-  camera.lookAt(HERO_LOOK_AT);
+  // First-person view — camera sits roughly where the archer's eye would be,
+  // pulled back far enough that the drawn-back nock (smoothedNock.z can reach
+  // bow.z + 4.8) and the fletch behind it stay comfortably in front of the
+  // near plane and don't dominate the frame.
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 600);
+  camera.position.set(0, 5.5, 13);
+  camera.lookAt(0, 5.5, -100);
 
-  // Soft monochrome lighting — minimal product-page feel
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xe2e2e2, 1.0));
-  const key = new THREE.DirectionalLight(0xffffff, 0.55);
-  key.position.set(-6, 14, 8);
-  scene.add(key);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.25);
-  fill.position.set(8, 6, 6);
-  scene.add(fill);
+  // Lighting
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d0d0, 0.95));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+  dir.position.set(-8, 16, 10);
+  scene.add(dir);
 
-  // Subtle ground plane — no grid, no distance markers (kept minimal)
+  // Ground + grid (for gauging trajectory distance)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(260, 420),
-    new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -0.05, -110);
   scene.add(ground);
+
+  const grid = new THREE.GridHelper(260, 52, 0x191919, 0xcccccc);
+  grid.position.set(0, 0.02, -110);
+  scene.add(grid);
+
+  // Distance markers (10/20/30… style spacing)
+  [-25, -55, -90, -130, -175].forEach((z, i) => {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(70, 0.12, 0.6),
+      new THREE.MeshBasicMaterial({ color: i % 2 ? 0xa52020 : 0x191919 })
+    );
+    m.position.set(0, 0.06, z);
+    scene.add(m);
+  });
 
   // Distant target
   buildTarget();
@@ -1051,60 +942,42 @@ function makeArrow(color) {
   return g;
 }
 
-/* Distant target — simplified Korean 과녁 (single rectangular face, no rings).
-   Visual: cream face panel with a dark border + slim central marker.
-   Hit logic: any arrow crossing within (±halfW, ±halfH) is a HIT. */
+/* Distant target (traditional concentric rings + support post) */
 function buildTarget() {
   targetGroup = new THREE.Group();
 
-  const w = TARGET.halfW * 2;
-  const h = TARGET.halfH * 2;
+  // Concentric ring faces (outer → inner: grayscale + accent center)
+  const rings = [
+    [4.0, 0xf8f8f8], [3.2, 0x191919], [2.4, 0xbcbcbc],
+    [1.6, 0x191919], [0.8, 0xa52020],
+  ];
+  rings.forEach(([r, c], i) => {
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 48),
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, side: THREE.DoubleSide })
+    );
+    disc.position.z = i * 0.02;        // prevent z-fighting
+    targetGroup.add(disc);
+  });
 
-  // Face — light cream panel
-  const face = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, h),
-    new THREE.MeshStandardMaterial({ color: 0xf5f1ea, roughness: 0.95, side: THREE.DoubleSide })
-  );
-  face.position.z = 0;
-  targetGroup.add(face);
-
-  // Thin dark border made from four edge bars (no rings, no scoring zones)
-  const borderMat = new THREE.MeshBasicMaterial({ color: 0x191919 });
-  const t = 0.08;          // border thickness
-  const top    = new THREE.Mesh(new THREE.PlaneGeometry(w + t * 2, t), borderMat);
-  const bot    = new THREE.Mesh(new THREE.PlaneGeometry(w + t * 2, t), borderMat);
-  const left   = new THREE.Mesh(new THREE.PlaneGeometry(t, h),         borderMat);
-  const right  = new THREE.Mesh(new THREE.PlaneGeometry(t, h),         borderMat);
-  top.position.set(0,  TARGET.halfH + t / 2, 0.01);
-  bot.position.set(0, -TARGET.halfH - t / 2, 0.01);
-  left.position.set(-TARGET.halfW - t / 2, 0, 0.01);
-  right.position.set( TARGET.halfW + t / 2, 0, 0.01);
-  targetGroup.add(top, bot, left, right);
-
-  // Discreet center dot — visual focus point, not a scoring zone
-  const dot = new THREE.Mesh(
-    new THREE.CircleGeometry(0.18, 24),
-    new THREE.MeshBasicMaterial({ color: 0x191919 })
-  );
-  dot.position.z = 0.02;
-  targetGroup.add(dot);
-
-  // Slim support post
+  // Support post
   const post = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.14, 0.18, 8, 10),
+    new THREE.CylinderGeometry(0.18, 0.24, 7, 10),
     new THREE.MeshStandardMaterial({ color: 0x191919, roughness: 1 })
   );
-  post.position.set(0, -TARGET.halfH - 4, -0.3);
+  post.position.set(0, -3.5, -0.3);
   targetGroup.add(post);
 
   targetGroup.position.set(TARGET.baseX, TARGET.y, TARGET.z);
   scene.add(targetGroup);
 }
 
-/* HIT / MISS only — returns 1 for hit (within the rectangular face), else 0.
-   dx, dy = absolute offsets from the target center on the target plane. */
-function judgeHit(dx, dy) {
-  return (dx <= TARGET.halfW && dy <= TARGET.halfH) ? 1 : 0;
+/* Arrow drop distance → score (check from innermost ring outward) */
+function scoreForDistance(d) {
+  for (const [r, pts] of TARGET.rings) {
+    if (d <= r) return pts;
+  }
+  return 0;
 }
 
 /* =========================================================================
@@ -1279,18 +1152,14 @@ function updateArrows(now) {
     pos.y += a.vel.y - 0.5 * g;     // ← y = y + velocityY - (0.5 * g)
     a.vel.y -= g;                   // decrease vertical velocity (gravity) for next frame
 
-    // Target-plane crossing test → HIT / MISS judgement
+    // Target-plane crossing test → score calculation
     if (!a.scored && prevZ > tz && pos.z <= tz) {
-      const dx = Math.abs(pos.x - tx);
-      const dy = Math.abs(pos.y - ty);
-      if (judgeHit(dx, dy)) {
-        score += 1; hitCount++;
-        lastShotResult = "HIT";
+      const pts = scoreForDistance(Math.hypot(pos.x - tx, pos.y - ty));
+      if (pts > 0) {
+        score += pts; hitCount++;
+        lastHitScore = pts; lastHitTime = now;
         targetPulse = 1;
-      } else {
-        lastShotResult = "MISS";
       }
-      lastHitTime = now;
       a.scored = true;
     }
 
@@ -1326,24 +1195,11 @@ function updateTarget(now) {
    Visual refresh: bow / string / nocked arrow
    ========================================================================= */
 function updateBowVisual() {
-  // Hero state — present the bow as a still product shot on the right of
-  // the canvas. No idle rotation; the bow stays motionless.
-  if (appState === "hero") {
-    bowGroup.position.lerp(HERO_BOW_POS, 0.08);
-    bowGroup.rotation.y = 0;
-    bowHandMarker.visible = false;
-    drawHandMarker.visible = false;
-    nockedArrow.visible = false;
-    return;
-  }
-
-  // Sim state — bow smoothly follows the left (bow) hand.
-  // Decay any leftover hero-spin so the GLB's intrinsic forward orientation is restored.
-  bowGroup.rotation.y *= 0.85;
+  // Bow smoothly follows the left (bow) hand
   if (latestBowCenter) {
     bowGroup.position.lerp(latestBowCenter, 0.4);
     bowHandMarker.position.copy(latestBowCenter);
-    bowHandMarker.visible = false;   // hidden in first-person; sphere would block the bow
+    bowHandMarker.visible = true;
   } else {
     bowHandMarker.visible = false;
   }
@@ -1454,33 +1310,31 @@ function onResults(results) {
 }
 
 /* =========================================================================
-   HUD refresh — dense status panel + HIT/MISS center flash
+   HUD refresh
    ========================================================================= */
 const el = {
-  drawBar:   document.getElementById("drawBar"),
-  drawVal:   document.getElementById("drawVal"),
-  gesture:   document.getElementById("gestureState"),
-  cdBar:     document.getElementById("cdBar"),
-  cdVal:     document.getElementById("cdVal"),
+  drawBar: document.getElementById("drawBar"),
+  drawVal: document.getElementById("drawVal"),
+  gesture: document.getElementById("gestureState"),
+  cdBar: document.getElementById("cdBar"),
+  cdVal: document.getElementById("cdVal"),
   chipThumb: document.getElementById("chipThumb"),
   chipIndex: document.getElementById("chipIndex"),
-  chipMiddle:document.getElementById("chipMiddle"),
-  chipMode:  document.getElementById("chipMode"),
-  chipArrows:document.getElementById("chipArrows"),
-  scoreVal:  document.getElementById("scoreVal"),
-  hitInfo:   document.getElementById("hitInfo"),
-  hitFlash:  document.getElementById("hitFlash"),
-  status:    document.getElementById("status"),
+  chipMiddle: document.getElementById("chipMiddle"),
+  chipMode: document.getElementById("chipMode"),
+  chipArrows: document.getElementById("chipArrows"),
+  scoreVal: document.getElementById("scoreVal"),
+  hitInfo: document.getElementById("hitInfo"),
+  hitFlash: document.getElementById("hitFlash"),
+  status: document.getElementById("status"),
 };
-
-let lastShotResult = null;   // 'HIT' | 'MISS' for the most recent shot
 
 function updateHUD(now) {
   // Draw-distance bar
   el.drawBar.style.width = (drawPowerSmooth * 100).toFixed(0) + "%";
   el.drawVal.textContent = (drawPowerSmooth * 100).toFixed(0) + "%";
 
-  // Gesture state pill
+  // Gesture state
   let label, cls;
   if (now - lastFireTime < 500 && lastFireMode) {
     label = lastFireMode === "sut" ? "SUT FIRE" : "AM FIRE";
@@ -1512,18 +1366,17 @@ function updateHUD(now) {
   el.chipMode.className = "chip" + (lastFireMode ? " mode-" + lastFireMode : "");
   el.chipArrows.textContent = "Arrows: " + arrows.length;
 
-  // Hits / shots — adapted for HIT/MISS judgement (score = total hits)
-  el.scoreVal.textContent = hitCount;
-  el.hitInfo.textContent = "of " + shotCount + " shots";
+  // Target score
+  el.scoreVal.textContent = score;
+  el.hitInfo.textContent = "Hits " + hitCount + " / Shots " + shotCount;
 
-  // Centered HIT / MISS flash
+  // Hit '+score' flash
   const fa = now - lastHitTime;
-  if (fa < 900 && lastShotResult) {
-    const t = fa / 900;
-    el.hitFlash.textContent = lastShotResult;
-    el.hitFlash.className = lastShotResult === "HIT" ? "hit" : "miss";
+  if (fa < 800) {
+    const t = fa / 800;
+    el.hitFlash.textContent = "+" + lastHitScore;
     el.hitFlash.style.opacity = (1 - t).toFixed(2);
-    el.hitFlash.style.transform = "translate(-50%,-50%) scale(" + (1 + t * 0.25).toFixed(2) + ")";
+    el.hitFlash.style.transform = "translate(-50%,-50%) scale(" + (1 + t * 0.6).toFixed(2) + ")";
   } else {
     el.hitFlash.style.opacity = 0;
   }
@@ -1537,23 +1390,12 @@ function setChip(node, name, folded) {
 /* =========================================================================
    Main render loop
    ========================================================================= */
-const _camLookTarget = new THREE.Vector3();
-const _camLookCur    = new THREE.Vector3();
-
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now();
 
   // Smooth draw-power
   drawPowerSmooth += (drawPower - drawPowerSmooth) * 0.3;
-
-  // Smoothly ease the camera between hero pose and the first-person sim pose
-  const tgtPos  = (appState === "sim") ? SIM_CAM_POS  : HERO_CAM_POS;
-  const tgtLook = (appState === "sim") ? SIM_LOOK_AT  : HERO_LOOK_AT;
-  camera.position.lerp(tgtPos, 0.06);
-  _camLookTarget.copy(tgtLook);
-  _camLookCur.lerp(_camLookTarget, 0.08);
-  camera.lookAt(_camLookCur);
 
   updateArrows(now);
   updateTarget(now);
@@ -1631,46 +1473,9 @@ initPostProcessing();
 medTimerEl = document.getElementById("medTimer");
 medLabelEl = document.getElementById("medLabel");
 medModeEl  = document.getElementById("medMode");
-// Seed the camera-lookAt smoother so the hero pose lands cleanly on the first frame
-_camLookCur.copy(HERO_LOOK_AT);
 animate();
 
-/* ─── App-state transitions ───────────────────────────────────────────────
-   hero  — landing layout (huge logo, slogan, bow on the right)
-   modes — breath-mode selection grid (after Begin →)
-   sim   — webcam tracking + first-person archery view */
-const startScreenEl = document.getElementById("startScreen");
-
-function showHero() {
-  startScreenEl.style.display = "block";
-  startScreenEl.classList.remove("modes");
-  startScreenEl.classList.add("hero");
-}
-function showModes() {
-  startScreenEl.style.display = "block";
-  startScreenEl.classList.remove("hero");
-  startScreenEl.classList.add("modes");
-}
-function enterSim() {
-  appState = "sim";
-  document.body.classList.add("sim");
-  startScreenEl.style.display = "none";
-}
-
-// Top-nav buttons
-document.getElementById("navBegin").addEventListener("click", showModes);
-document.querySelectorAll(".navItem").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".navItem").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    const target = btn.dataset.nav;
-    if (target === "simulation") showModes();
-    else showHero();
-  });
-});
-document.getElementById("modeBack").addEventListener("click", showHero);
-
-// Mode tile — selecting a breath mode starts the simulation
+// Home screen — clicking a breath-mode tile starts the simulation in that mode
 document.querySelectorAll(".modeTile").forEach((tile) => {
   tile.addEventListener("click", () => {
     const modeKey = tile.dataset.mode;
@@ -1681,7 +1486,7 @@ document.querySelectorAll(".modeTile").forEach((tile) => {
     lastPhaseIndex = -1;
     initMedHud(currentBreathMode.shape);
     medModeEl.textContent = currentBreathMode.name;
-    enterSim();
+    // HUD auto-shows only on aim (fist) + draw, so we don't add .show here
     startCamera();
   });
 });
