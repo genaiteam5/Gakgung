@@ -485,37 +485,59 @@ function chime(freq) {
 }
 
 /* ─── 매 프레임 호출: HUD/링/타이머/비네팅 일괄 갱신 ───
-   기존 활쏘기 animate() 안에 `updateBreathing(now);` 한 줄만 추가하면 통합됨. */
+   호흡 HUD는 '조준(AIMING) + 시위 당김' 상태일 때만 표시.
+   화살 발사로 IDLE 로 돌아가면 자동으로 숨겨지고, 다시 당기면 새 호흡 사이클 시작. */
 function updateBreathing(now) {
   if (!currentBreathMode) return;
-  const info = computeBreathPhase(now - breathStartMs, currentBreathMode.phases);
 
-  // (1) 단계 전환 종소리
-  if (info.phaseIndex !== lastPhaseIndex) {
-    lastPhaseIndex = info.phaseIndex;
-    const f = { inhale: 660, exhale: 392, holdFull: 523, holdEmpty: 440 }[info.phase.type] || 440;
-    chime(f);
+  // 표시 조건 — 주먹을 쥐어 조준 중이고, 시위가 어느 정도 당겨졌을 때
+  const shouldShow = (state === "AIMING") && (drawPowerSmooth >= MIN_DRAW_POWER);
+  const medHudEl = document.getElementById("medHud");
+
+  if (shouldShow && !breathHudShown) {
+    // 새로 표시 — 호흡 사이클을 들숨부터 다시 시작
+    breathHudShown = true;
+    breathStartMs = now;
+    lastPhaseIndex = -1;
+    medHudEl.classList.add("show");
+  } else if (!shouldShow && breathHudShown) {
+    // 발사 등으로 더 이상 당김 상태가 아니면 숨김
+    breathHudShown = false;
+    medHudEl.classList.remove("show");
   }
 
-  // (2) 도형 ring progress 채움 (현재 단계 내 0→1)
-  const FILL = 0xff3b9d;   // hot pink — 채워진 부분
-  const EMPTY = 0x2a2f44;  // 어두운 회청색 — 빈 부분
-  const fillTo = info.progress;
-  for (const s of medSegments) s.mat.color.setHex(s.u <= fillTo ? FILL : EMPTY);
+  // 비네팅 타깃 — HUD가 숨겨지면 0으로 자연 페이드
+  let vTarget = 0;
 
-  // (3) 도형 중앙 Void 에 잔여초 + 단계 라벨
-  if (medTimerEl) medTimerEl.textContent = Math.ceil(info.remaining) + "s";
-  if (medLabelEl) medLabelEl.textContent = info.phase.label;
+  if (breathHudShown) {
+    const info = computeBreathPhase(now - breathStartMs, currentBreathMode.phases);
 
-  // (4) 비네팅 강도 — '정지' 또는 '긴 날숨'(≥6초)에 외곽 어두워짐 (부드러운 보간)
-  let target = 0;
-  if (info.phase.type === "holdFull" || info.phase.type === "holdEmpty") target = 0.55;
-  if (info.phase.type === "exhale" && info.phase.dur >= 6) target = 0.7;
-  vignetteAmount += (target - vignetteAmount) * 0.04;
+    // 단계 전환 종소리
+    if (info.phaseIndex !== lastPhaseIndex) {
+      lastPhaseIndex = info.phaseIndex;
+      const f = { inhale: 660, exhale: 392, holdFull: 523, holdEmpty: 440 }[info.phase.type] || 440;
+      chime(f);
+    }
+
+    // 도형 ring progress 채움
+    const FILL = 0xff3b9d, EMPTY = 0x2a2f44;
+    for (const s of medSegments) s.mat.color.setHex(s.u <= info.progress ? FILL : EMPTY);
+
+    // 잔여초 + 단계 라벨
+    if (medTimerEl) medTimerEl.textContent = Math.ceil(info.remaining) + "s";
+    if (medLabelEl) medLabelEl.textContent = info.phase.label;
+
+    // 비네팅 타깃 — '정지' 또는 '긴 날숨'(≥6초)에 외곽 어두워짐
+    if (info.phase.type === "holdFull" || info.phase.type === "holdEmpty") vTarget = 0.55;
+    if (info.phase.type === "exhale" && info.phase.dur >= 6) vTarget = 0.7;
+
+    // 미니 씬 렌더
+    if (medRenderer) medRenderer.render(medScene, medCamera);
+  }
+
+  // 비네팅 강도 부드러운 보간 (표시 ON/OFF 전환 시 자연스러운 페이드)
+  vignetteAmount += (vTarget - vignetteAmount) * 0.04;
   if (vignetteUniform) vignetteUniform.value = vignetteAmount;
-
-  // (5) 미니 씬 렌더
-  if (medRenderer) medRenderer.render(medScene, medCamera);
 }
 
 /* =========================================================================
@@ -572,6 +594,18 @@ let prevFinger = { thumb: true, index: true, middle: true }; // 직전 프레임
 let lastFireTime = -99999;
 let currentCooldown = 0;
 let lastFireMode = null;                 // 'sut' | 'am'
+let aimStartMs = 0;                      // 조준(AIMING) 진입 시각 (즉시발사 방지)
+
+// 손가락 fold 판정 히스테리시스 — MediaPipe 떨림으로 인한 false positive 차단
+// (한 번 'folded' 판정이 나면 ratio > 상한을 넘어야 'extended'로 바뀌고, 그 반대도 동일)
+let stableThumb = true, stableIndex = true, stableMiddle = true;
+
+// 호흡 HUD 표시 여부 — 조준+당김 상태일 때만 표시
+let breathHudShown = false;
+
+// 오발 방지 안전장치 (튜닝 포인트)
+const MIN_AIM_MS = 250;                  // AIMING 진입 후 최소 유지시간 (ms)
+const MIN_DRAW_POWER = 0.18;             // 발사 허용 최소 당김 세기 (0~1)
 
 let drawPower = 0;                       // 0~1 정규화된 당김 세기
 let drawPowerSmooth = 0;
@@ -780,14 +814,28 @@ function computeFingerStates(lms) {
   const w = lms[0];
   const d = (a, b) => dist3D(a, b);
 
-  // 검지: 8번 Tip 이 5번 MCP 보다 손목에 가까움(=아래로 말림) → 접힘
-  const isIndexFolded  = d(lms[8],  w) < d(lms[5], w);
-  // 중지: 12번 Tip 이 9번 MCP 보다 손목에 가까움 → 접힘
-  const isMiddleFolded = d(lms[12], w) < d(lms[9], w);
-  // 엄지: 4번 Tip 이 2번 MCP 보다 새끼 기저(17)에 가까움(=안쪽/아래로 접힘) → 접힘
-  const isThumbFolded  = d(lms[4], lms[17]) < d(lms[2], lms[17]);
+  // 각 손가락의 fold ratio (1 미만 = 접힘 쪽, 1 초과 = 폄 쪽)
+  // 히스테리시스 데드밴드를 두어, 임계값 근처에서의 떨림이 상태를 뒤집지 않도록 함.
+  // → 암깍지 오인식(엄지 떨림으로 인한 false 발사)의 주요 원인을 차단.
 
-  return { thumb: isThumbFolded, index: isIndexFolded, middle: isMiddleFolded };
+  // 검지: tip(8) → 손목 / MCP(5) → 손목 비율
+  const rIdx = d(lms[8],  w) / Math.max(0.001, d(lms[5], w));
+  if (rIdx < 0.90)      stableIndex = true;     // 확실히 접힘
+  else if (rIdx > 1.10) stableIndex = false;    // 확실히 폄
+  // (사이값은 이전 상태 유지)
+
+  // 중지: tip(12) → 손목 / MCP(9) → 손목 비율
+  const rMid = d(lms[12], w) / Math.max(0.001, d(lms[9], w));
+  if (rMid < 0.90)      stableMiddle = true;
+  else if (rMid > 1.10) stableMiddle = false;
+
+  // 엄지: tip(4) → 새끼MCP(17) / MCP(2) → 새끼MCP(17) 비율
+  // 데드밴드를 더 넓게(0.92 ~ 1.14) — 엄지 떨림이 가장 심함
+  const rThm = d(lms[4], lms[17]) / Math.max(0.001, d(lms[2], lms[17]));
+  if (rThm < 0.92)      stableThumb = true;
+  else if (rThm > 1.14) stableThumb = false;
+
+  return { thumb: stableThumb, index: stableIndex, middle: stableMiddle };
 }
 
 /* =========================================================================
@@ -797,6 +845,11 @@ function updateStateMachine(f, now) {
   const cooldownLeft = Math.max(0, lastFireTime + currentCooldown - now);
   const onCooldown = cooldownLeft > 0;
 
+  // 안전장치 — 모두 충족해야 실제 발사를 허용 (남발 차단)
+  const enoughDraw = drawPowerSmooth >= MIN_DRAW_POWER;   // 시위가 충분히 당겨졌나
+  const heldLong   = (now - aimStartMs) >= MIN_AIM_MS;    // 조준을 일정 시간 유지했나
+  const canFire    = !onCooldown && enoughDraw && heldLong;
+
   const isFist      = f.thumb && f.index && f.middle;             // 주먹 꽉 쥠
   const allExtended = !f.thumb && !f.index && !f.middle;          // 손 확 펴짐
   const prevAllExt  = !prevFinger.thumb && !prevFinger.index && !prevFinger.middle;
@@ -804,18 +857,22 @@ function updateStateMachine(f, now) {
   const allExtRising = allExtended && !prevAllExt;                // 세 손가락 동시 폄 순간
 
   if (state === "IDLE") {
-    if (isFist) state = "AIMING";                                // 주먹 쥐면 조준 시작
+    if (isFist) {
+      state = "AIMING";
+      aimStartMs = now;                          // 조준 시작 시각 기록
+    }
   }
 
   if (state === "AIMING") {
     // ① 숫깍지 풀그립: [엄지+검지+중지가 '동시에' 모두 펴지는 순간]
     if (allExtRising) {
-      if (!onCooldown) fireArrow("sut", now);
+      if (canFire) fireArrow("sut", now);
       state = "IDLE";
     }
     // ② 암깍지: [검지·중지는 구부린 채, '엄지만' 위로 튕기듯 펴지는 순간]
+    //   - 히스테리시스 + 최소 당김 + 최소 조준유지로 떨림 발사 차단
     else if (thumbRising && f.index && f.middle) {
-      if (!onCooldown) fireArrow("am", now);
+      if (canFire) fireArrow("am", now);
       state = "IDLE";
     }
   }
@@ -1227,7 +1284,7 @@ document.querySelectorAll(".modeTile").forEach((tile) => {
     lastPhaseIndex = -1;
     initMedHud(currentBreathMode.shape);
     medModeEl.textContent = currentBreathMode.name;
-    document.getElementById("medHud").classList.add("show");
+    // HUD 는 조준(주먹)+당김 시에만 자동 표시되므로 여기서 .show 를 추가하지 않음
     startCamera();
   });
 });
