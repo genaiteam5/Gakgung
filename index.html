@@ -11,7 +11,7 @@
   :root {
     --bg:     #F8F8F8;
     --text:   #191919;
-    --accent: #A52020;
+    --accent: #BF1B1B;
     --muted:  rgba(25, 25, 25, 0.55);
     --line:   rgba(25, 25, 25, 0.18);
     --surface: rgba(248, 248, 248, 0.92);
@@ -248,6 +248,155 @@
     animation: readyPulse 1s ease-in-out infinite;
   }
   #medLabel.ready { color: var(--accent); }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     Simulation visual layer — real photo background + graphic UI overlays.
+     Everything gated on body.sim so the start screen stays untouched.
+     ═══════════════════════════════════════════════════════════════════════ */
+  #simBg, #simOverlay, #simReticle, #simTopText, #simCorners {
+    display: none;
+  }
+  body.sim #simBg, body.sim #simOverlay, body.sim #simReticle,
+  body.sim #simTopText, body.sim #simCorners { display: block; }
+
+  /* Full-screen background photo (Korean hanok / archery range) */
+  #simBg {
+    position: fixed; inset: 0; z-index: 1;
+    background-color: #1a1814;                                     /* fallback dark */
+    background-image: url("images/simulation-bg.jpg");
+    background-size: cover; background-position: center center;
+    background-repeat: no-repeat;
+  }
+  /* Soft darkening + slight vignette so overlay text and arrows pop */
+  #simOverlay {
+    position: fixed; inset: 0; z-index: 2;
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 100%),
+      linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.28) 100%);
+    pointer-events: none;
+  }
+  /* 3D scene sits above background but below UI overlays — alpha:true renderer
+     means the photo shows through everywhere the scene is transparent */
+  body.sim #three { z-index: 3; background: transparent; }
+
+  /* ── Top-center status: "Release" big + "stability: XX%" small ── */
+  #simTopText {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    z-index: 12; text-align: center; pointer-events: none;
+    color: #ffffff;
+  }
+  #simPhase {
+    font-size: 44px; font-weight: 700;
+    letter-spacing: -0.06em; line-height: 1;
+    text-shadow: 0 2px 18px rgba(0,0,0,.6);
+  }
+  #simStability {
+    margin-top: 8px;
+    font-size: 14px; font-weight: 400;
+    color: rgba(255,255,255,.85);
+    letter-spacing: 0; font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 12px rgba(0,0,0,.7);
+  }
+
+  /* ── Central reticle (circle + tick marks + red center dot) ── */
+  #simReticle {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 240px; height: 240px;
+    z-index: 11; pointer-events: none;
+  }
+  #simReticle svg { width: 100%; height: 100%; display: block; }
+
+  /* ── Compact corner widgets (hits/shots · gesture · breath state) ── */
+  #simCorners {
+    position: fixed; inset: 0; z-index: 12;
+    pointer-events: none;
+  }
+  .simCorner {
+    position: absolute;
+    color: rgba(255,255,255,.92);
+    font-size: 11px; letter-spacing: 0;
+    text-transform: uppercase;
+    text-shadow: 0 2px 10px rgba(0,0,0,.7);
+    line-height: 1.55;
+  }
+  .simCorner.tl { top: 22px;    left: 36px; }
+  .simCorner.tr { top: 22px;    right: 36px; text-align: right; }
+  .simCorner.bl { bottom: 24px; left: 36px; }
+  .simCorner.br { bottom: 24px; right: 36px; text-align: right; }
+  .simCorner .k { color: rgba(255,255,255,.55); }
+  .simCorner .v { color: #ffffff; font-variant-numeric: tabular-nums; }
+  .simCorner .v.accent { color: var(--accent); }
+  .simCornerDraw {
+    width: 120px; height: 2px; background: rgba(255,255,255,.25);
+    margin-top: 6px; margin-left: auto;
+  }
+  .simCornerDraw > span {
+    display: block; height: 100%; background: #ffffff;
+    width: 0%; transition: width .08s linear;
+  }
+
+  /* Hide the dense legacy HUD panel during sim — replaced by simCorners */
+  body.sim #ui { display: none; }
+
+  /* Webcam PIP shrinks + moves out of the way in sim */
+  body.sim #webcam {
+    width: 160px; height: 120px;
+    right: 24px; bottom: 24px;
+    border: 1px solid rgba(255,255,255,.3);
+    opacity: 0.85;
+  }
+  body.sim #webcamLabel {
+    right: 28px; bottom: 150px;
+    color: rgba(255,255,255,.55);
+  }
+
+  /* Breath HUD — keep, but lighten so it reads on the photo background */
+  body.sim #medHud {
+    background: rgba(0,0,0,.42);
+    border-color: rgba(255,255,255,.18);
+  }
+  body.sim #medMode { color: rgba(255,255,255,.78); }
+  body.sim #medTimer { color: #ffffff; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+  body.sim #medLabel { color: rgba(255,255,255,.92); }
+
+  /* HIT/MISS dot — a small accent marker that shows on the reticle when an arrow scores */
+  #hitDot {
+    position: fixed; top: 50%; left: 50%;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%);
+    z-index: 13; pointer-events: none;
+    opacity: 0; transition: opacity .35s ease-out;
+    box-shadow: 0 0 0 2px rgba(255,255,255,.85);
+  }
+
+  /* Suppress dark scene background entirely while in sim */
+  body.sim {
+    background: #0a0a0a;
+  }
+
+  /* ── Mobile / narrow viewports ── reticle shrinks, corners reflow ── */
+  @media (max-width: 720px) {
+    #simTopText { top: 36px; }
+    #simPhase { font-size: 32px; }
+    #simStability { font-size: 12px; }
+    #simReticle { width: 180px; height: 180px; }
+    .simCorner.tl, .simCorner.bl { left: 16px; }
+    .simCorner.tr, .simCorner.br { right: 16px; }
+    .simCorner.tl, .simCorner.tr { top: 14px; }
+    .simCorner.bl, .simCorner.br { bottom: 14px; }
+    .simCornerDraw { width: 96px; }
+    body.sim #webcam {
+      width: 110px; height: 82px;
+      right: 12px; bottom: 12px;
+    }
+    body.sim #webcamLabel { display: none; }
+    body.sim #medHud {
+      top: auto; right: 50%; bottom: 130px;
+      transform: translateX(50%); width: 120px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -305,6 +454,69 @@
 
 <div id="status">Initializing…</div>
 <div id="hitFlash"></div>
+
+<!-- ─────────────── Simulation overlay layer (body.sim) ─────────────── -->
+<!-- Background photo (full-screen). Falls back to dark color if image is missing. -->
+<div id="simBg"></div>
+<!-- Translucent dark layer to ensure UI legibility on busy photos -->
+<div id="simOverlay"></div>
+
+<!-- Center top: phase label ("Release" / "Aim" / "Draw" / etc.) + stability % -->
+<div id="simTopText">
+  <div id="simPhase">Ready</div>
+  <div id="simStability">stability: 80%</div>
+</div>
+
+<!-- Center: circular aiming reticle with red center dot, tick marks -->
+<div id="simReticle">
+  <svg viewBox="0 0 240 240" aria-hidden="true">
+    <!-- Outer rim -->
+    <circle cx="120" cy="120" r="110" fill="none"
+            stroke="rgba(255,255,255,0.85)" stroke-width="1.4" />
+    <!-- Inner soft rim -->
+    <circle cx="120" cy="120" r="60" fill="none"
+            stroke="rgba(255,255,255,0.45)" stroke-width="0.8" />
+    <!-- Tick marks every 12° on the inner rim -->
+    <g stroke="rgba(255,255,255,0.85)" stroke-width="1.2">
+      <line x1="120" y1="14"  x2="120" y2="28" />
+      <line x1="120" y1="212" x2="120" y2="226" />
+      <line x1="14"  y1="120" x2="28"  y2="120" />
+      <line x1="212" y1="120" x2="226" y2="120" />
+    </g>
+    <g stroke="rgba(255,255,255,0.55)" stroke-width="0.9">
+      <line x1="44"  y1="44"  x2="54"  y2="54" />
+      <line x1="186" y1="44"  x2="196" y2="54" />
+      <line x1="44"  y1="186" x2="54"  y2="196" />
+      <line x1="186" y1="186" x2="196" y2="196" />
+    </g>
+    <!-- Center accent dot — #BF1B1B aim point -->
+    <circle cx="120" cy="120" r="5" fill="#BF1B1B" />
+  </svg>
+</div>
+
+<!-- HIT/MISS hit dot — placed near reticle center, briefly visible on score -->
+<div id="hitDot"></div>
+
+<!-- Corner stats: minimal, monochrome text overlays -->
+<div id="simCorners">
+  <div class="simCorner tl">
+    <div><span class="k">Hits</span> <span id="simHits" class="v accent">0</span> <span class="k">/</span> <span id="simShots" class="v">0</span></div>
+    <div><span class="k">Last</span> <span id="simLast" class="v">—</span></div>
+  </div>
+  <div class="simCorner tr">
+    <div><span class="k">Gesture</span> <span id="simGesture" class="v">Idle</span></div>
+    <div><span class="k">Draw</span> <span id="simDrawVal" class="v">0%</span></div>
+    <div class="simCornerDraw"><span id="simDrawBar"></span></div>
+  </div>
+  <div class="simCorner bl">
+    <span class="k">SUT</span> · 3-finger extend · 1.5s &nbsp;|&nbsp;
+    <span class="k">AM</span> · thumb flick · 0.7s
+  </div>
+  <div class="simCorner br">
+    <div><span class="k">Cooldown</span> <span id="simCooldown" class="v">READY</span></div>
+    <div><span class="k">Arrows</span> <span id="simArrows" class="v">0</span></div>
+  </div>
+</div>
 
 <!-- Breath training mini HUD: Three.js shape + remaining time + phase label -->
 <div id="medHud">
@@ -384,11 +596,13 @@ const CONFIG = {
   MAX_ARROWS: 14,                        // max concurrent arrows
 };
 
-/* Moving target settings */
+/* Moving target settings — single rectangular Korean 과녁 (HIT/MISS only).
+   The hit zone is defined by halfW/halfH from the target's moving center. */
 const TARGET = {
   baseX: 0, y: 7, z: -100,                       // base position (far away)
   moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // horizontal/vertical amplitude · speed
-  rings: [[0.8, 10], [1.6, 8], [2.4, 6], [3.2, 4], [4.0, 2]],  // [radius, points] inner → outer
+  halfW: 3.6,                                    // hit-zone half-width
+  halfH: 4.4,                                    // hit-zone half-height
 };
 
 /* =========================================================================
@@ -629,7 +843,7 @@ function updateBreathing(now) {
 
     if (info.done) {
       // ─── One cycle complete → "FIRE!" signal ───
-      const READY = 0xa52020;   // Accent
+      const READY = 0xbf1b1b;   // Accent
       for (const s of medSegments) s.mat.color.setHex(READY);
       if (medTimerEl) {
         medTimerEl.textContent = "FIRE";
@@ -642,7 +856,7 @@ function updateBreathing(now) {
       vTarget = 0;             // release vignette — brighten view (aim finishing)
     } else {
       // ─── Breath in progress ───
-      const FILL = 0xa52020, EMPTY = 0xd6d6d6;
+      const FILL = 0xbf1b1b, EMPTY = 0xd6d6d6;
       for (const s of medSegments) s.mat.color.setHex(s.u <= info.progress ? FILL : EMPTY);
 
       if (medTimerEl) {
@@ -716,6 +930,8 @@ const arrows = [];                       // in-flight arrows
 
 let score = 0, hitCount = 0, shotCount = 0;          // target score / hits / shots
 let targetPulse = 0, lastHitScore = 0, lastHitTime = -99999;
+let lastShotResult = null;                          // 'HIT' | 'MISS' for the most recent shot
+let lastHitOffsetX = 0, lastHitOffsetY = 0;         // landing offset from target center (for hit dot)
 
 let state = "IDLE";                      // IDLE | AIMING
 let prevFinger = { thumb: true, index: true, middle: true }; // previous-frame fold state
@@ -739,6 +955,14 @@ let drawPower = 0;                       // 0–1 normalized draw power
 let drawPowerSmooth = 0;
 let rawDrawDist = 0;
 let curFinger = { thumb: true, index: true, middle: true };
+
+// Rolling stability metric (0–100). Updated every frame from a few signals:
+//  - breath phase  (holds = highest, exhale/inhale = mid)
+//  - draw power    (steady deep draw scores better)
+//  - hand jitter   (variance of recent bow-hand positions)
+let stabilityPct = 80;
+const stabHist = [];                     // recent bowCenter samples for jitter calc
+const STAB_HIST_LEN = 24;
 
 // World coordinates updated every frame from MediaPipe results
 let latestBowCenter = null;              // left-hand (bow hand) center → world
@@ -808,13 +1032,18 @@ function loadGakjiModel() {
    ========================================================================= */
 function initThree() {
   const canvas = document.getElementById("three");
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  // alpha:true keeps the canvas transparent so the background photo (simBg)
+  // shows through during the sim. setClearColor with alpha 0 enforces that.
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000, 0);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf8f8f8);
-  scene.fog = new THREE.Fog(0xf8f8f8, 70, 320);
+  // No solid background — the page's background photo + overlay show through.
+  scene.background = null;
+  // Mild distance fade so distant scenery dissolves into the photo plate.
+  scene.fog = new THREE.Fog(0x111111, 90, 320);
 
   // First-person view — camera sits roughly where the archer's eye would be,
   // pulled back far enough that the drawn-back nock (smoothedNock.z can reach
@@ -830,29 +1059,8 @@ function initThree() {
   dir.position.set(-8, 16, 10);
   scene.add(dir);
 
-  // Ground + grid (for gauging trajectory distance)
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(260, 420),
-    new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 1 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(0, -0.05, -110);
-  scene.add(ground);
-
-  const grid = new THREE.GridHelper(260, 52, 0x191919, 0xcccccc);
-  grid.position.set(0, 0.02, -110);
-  scene.add(grid);
-
-  // Distance markers (10/20/30… style spacing)
-  [-25, -55, -90, -130, -175].forEach((z, i) => {
-    const m = new THREE.Mesh(
-      new THREE.BoxGeometry(70, 0.12, 0.6),
-      new THREE.MeshBasicMaterial({ color: i % 2 ? 0xa52020 : 0x191919 })
-    );
-    m.position.set(0, 0.06, z);
-    scene.add(m);
-  });
-
+  // Floor / grid / distance markers omitted — the page background is now a
+  // real photo of a hanok archery range, so a synthetic CG floor would clash.
   // Distant target
   buildTarget();
 
@@ -873,7 +1081,7 @@ function initThree() {
   scene.add(bowString);
 
   // Nocked arrow (visible while aiming)
-  nockedArrow = makeArrow(0xa52020);
+  nockedArrow = makeArrow(0xbf1b1b);
   nockedArrow.visible = false;
   scene.add(nockedArrow);
 
@@ -942,42 +1150,63 @@ function makeArrow(color) {
   return g;
 }
 
-/* Distant target (traditional concentric rings + support post) */
+/* Distant target — simplified Korean 과녁 (single rectangular face).
+   Soft cream face, dark hairline border, small central dot. No score rings;
+   any arrow landing within (±halfW, ±halfH) is a HIT, otherwise MISS. */
 function buildTarget() {
   targetGroup = new THREE.Group();
 
-  // Concentric ring faces (outer → inner: grayscale + accent center)
-  const rings = [
-    [4.0, 0xf8f8f8], [3.2, 0x191919], [2.4, 0xbcbcbc],
-    [1.6, 0x191919], [0.8, 0xa52020],
-  ];
-  rings.forEach(([r, c], i) => {
-    const disc = new THREE.Mesh(
-      new THREE.CircleGeometry(r, 48),
-      new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, side: THREE.DoubleSide })
-    );
-    disc.position.z = i * 0.02;        // prevent z-fighting
-    targetGroup.add(disc);
-  });
+  const w = TARGET.halfW * 2;
+  const h = TARGET.halfH * 2;
 
-  // Support post
+  // Face panel — slight transparency so it blends with the photo background
+  const face = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshStandardMaterial({
+      color: 0xf5efe2, roughness: 0.95, side: THREE.DoubleSide,
+      transparent: true, opacity: 0.78,
+    })
+  );
+  face.position.z = 0;
+  targetGroup.add(face);
+
+  // Thin dark border, four edge bars
+  const borderMat = new THREE.MeshBasicMaterial({ color: 0x191919 });
+  const t = 0.08;
+  const top    = new THREE.Mesh(new THREE.PlaneGeometry(w + t * 2, t), borderMat);
+  const bot    = new THREE.Mesh(new THREE.PlaneGeometry(w + t * 2, t), borderMat);
+  const left   = new THREE.Mesh(new THREE.PlaneGeometry(t, h),         borderMat);
+  const right  = new THREE.Mesh(new THREE.PlaneGeometry(t, h),         borderMat);
+  top.position.set(0,  TARGET.halfH + t / 2, 0.01);
+  bot.position.set(0, -TARGET.halfH - t / 2, 0.01);
+  left.position.set(-TARGET.halfW - t / 2, 0, 0.01);
+  right.position.set( TARGET.halfW + t / 2, 0, 0.01);
+  targetGroup.add(top, bot, left, right);
+
+  // Visual focus dot — purely decorative, not a scoring zone
+  const dot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.2, 24),
+    new THREE.MeshBasicMaterial({ color: 0x191919 })
+  );
+  dot.position.z = 0.02;
+  targetGroup.add(dot);
+
+  // Slim support post
   const post = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 0.24, 7, 10),
+    new THREE.CylinderGeometry(0.14, 0.18, 7.5, 10),
     new THREE.MeshStandardMaterial({ color: 0x191919, roughness: 1 })
   );
-  post.position.set(0, -3.5, -0.3);
+  post.position.set(0, -TARGET.halfH - 4, -0.3);
   targetGroup.add(post);
 
   targetGroup.position.set(TARGET.baseX, TARGET.y, TARGET.z);
   scene.add(targetGroup);
 }
 
-/* Arrow drop distance → score (check from innermost ring outward) */
-function scoreForDistance(d) {
-  for (const [r, pts] of TARGET.rings) {
-    if (d <= r) return pts;
-  }
-  return 0;
+/* HIT (1) if the arrow crossed inside the rectangular hit-zone, else MISS (0).
+   dx, dy = absolute offsets of the arrow's crossing point from the target center. */
+function judgeHit(dx, dy) {
+  return (dx <= TARGET.halfW && dy <= TARGET.halfH) ? 1 : 0;
 }
 
 /* =========================================================================
@@ -1079,6 +1308,44 @@ function updateStateMachine(f, now) {
 /* =========================================================================
    Fire arrow — velocity vector differs per release mode
    ========================================================================= */
+/* Compute a stability score (0–100) used both for the HUD readout and for
+   the velocity wobble applied to fired arrows.  Combines breath phase,
+   draw power, and bow-hand jitter into a single number. */
+function computeStability() {
+  let s = 78;                                   // baseline
+
+  // Breath phase bonus — holds are the calmest moments
+  if (currentBreathMode) {
+    const info = computeBreathPhase(performance.now() - breathStartMs, currentBreathMode.phases);
+    if (info.done) {
+      s = 92;                                   // "Release" moment — quietest
+    } else if (info.phase) {
+      if (info.phase.type === "holdFull" || info.phase.type === "holdEmpty") s = 90;
+      else if (info.phase.type === "exhale") s = 85;
+      else if (info.phase.type === "inhale") s = 82;
+    }
+  }
+
+  // Penalty when not aiming (idle hand wobble)
+  if (state !== "AIMING") s -= 8;
+
+  // Bonus for a deep, sustained draw
+  s += Math.round((drawPowerSmooth - 0.5) * 6);
+
+  // Jitter penalty from bow-hand position variance
+  if (stabHist.length >= 8) {
+    let mx = 0, my = 0;
+    for (const v of stabHist) { mx += v.x; my += v.y; }
+    mx /= stabHist.length; my /= stabHist.length;
+    let varSum = 0;
+    for (const v of stabHist) { varSum += (v.x - mx) * (v.x - mx) + (v.y - my) * (v.y - my); }
+    const jitter = Math.sqrt(varSum / stabHist.length);
+    s -= Math.min(20, Math.round(jitter * 30));
+  }
+
+  return THREE.MathUtils.clamp(Math.round(s), 40, 99);
+}
+
 function fireArrow(mode, now) {
   const p = drawPowerSmooth;                       // draw power 0–1
   const spawn = latestBowCenter ? latestBowCenter.clone() : new THREE.Vector3(0, 5, 3);
@@ -1094,7 +1361,7 @@ function fireArrow(mode, now) {
     // SUT: very strong forward speed, low rise — flat, far-reaching, heavy linear shot
     velZ = -(CONFIG.SUT_SPEED + p * CONFIG.SUT_SPEED_GAIN);
     velY =  CONFIG.SUT_VY + p * CONFIG.SUT_VY_GAIN;
-    color = 0xa52020;
+    color = 0xbf1b1b;
     currentCooldown = CONFIG.SUT_COOLDOWN;
   } else {
     // AM: about half the forward speed, but soars high — large drop, arc-shaped trajectory
@@ -1104,13 +1371,19 @@ function fireArrow(mode, now) {
     currentCooldown = CONFIG.AM_COOLDOWN;
   }
 
+  // Stability-driven wobble — lower stability = more lateral perturbation,
+  // so a calm breath + steady hand actually matters for accuracy.
+  const wobble = Math.max(0, (100 - stabilityPct) / 100) * 0.45;
+  velX += (Math.random() - 0.5) * wobble;
+  velY += (Math.random() - 0.5) * wobble * 0.6;
+
   const group = makeArrow(color);
   group.position.copy(spawn);
 
-  // Trail line: SUT = translucent accent / AM = translucent text-color
+  // White trail — reads clearly against the photo background regardless of mode.
   const trailMesh = new THREE.Mesh(
     new THREE.BufferGeometry(),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, depthWrite: false })
   );
 
   scene.add(group, trailMesh);
@@ -1152,13 +1425,18 @@ function updateArrows(now) {
     pos.y += a.vel.y - 0.5 * g;     // ← y = y + velocityY - (0.5 * g)
     a.vel.y -= g;                   // decrease vertical velocity (gravity) for next frame
 
-    // Target-plane crossing test → score calculation
+    // Target-plane crossing test → HIT / MISS judgement
     if (!a.scored && prevZ > tz && pos.z <= tz) {
-      const pts = scoreForDistance(Math.hypot(pos.x - tx, pos.y - ty));
-      if (pts > 0) {
-        score += pts; hitCount++;
-        lastHitScore = pts; lastHitTime = now;
+      const offX = pos.x - tx, offY = pos.y - ty;
+      lastHitOffsetX = offX; lastHitOffsetY = offY;
+      if (judgeHit(Math.abs(offX), Math.abs(offY))) {
+        score += 1; hitCount++;
+        lastShotResult = "HIT";
+        lastHitScore = 1; lastHitTime = now;
         targetPulse = 1;
+      } else {
+        lastShotResult = "MISS";
+        lastHitTime = now;
       }
       a.scored = true;
     }
@@ -1172,7 +1450,7 @@ function updateArrows(now) {
     if (a.trailPoints.length >= 2) {
       const curve = new THREE.CatmullRomCurve3(a.trailPoints);
       const newGeo = new THREE.TubeGeometry(
-        curve, Math.min(a.trailPoints.length * 2, 90), 0.12, 6, false
+        curve, Math.min(a.trailPoints.length * 2, 96), 0.16, 8, false
       );
       a.trailMesh.geometry.dispose();
       a.trailMesh.geometry = newGeo;
@@ -1310,9 +1588,11 @@ function onResults(results) {
 }
 
 /* =========================================================================
-   HUD refresh
+   HUD refresh — writes to both the legacy panel (kept off in sim via CSS)
+   AND the new sim-overlay widgets (top-center phase/stability + corner stats).
    ========================================================================= */
 const el = {
+  // Legacy panel (still in DOM, hidden by body.sim CSS)
   drawBar: document.getElementById("drawBar"),
   drawVal: document.getElementById("drawVal"),
   gesture: document.getElementById("gestureState"),
@@ -1327,14 +1607,29 @@ const el = {
   hitInfo: document.getElementById("hitInfo"),
   hitFlash: document.getElementById("hitFlash"),
   status: document.getElementById("status"),
+  // New sim-overlay widgets
+  simPhase: document.getElementById("simPhase"),
+  simStability: document.getElementById("simStability"),
+  simHits: document.getElementById("simHits"),
+  simShots: document.getElementById("simShots"),
+  simLast: document.getElementById("simLast"),
+  simGesture: document.getElementById("simGesture"),
+  simDrawVal: document.getElementById("simDrawVal"),
+  simDrawBar: document.getElementById("simDrawBar"),
+  simCooldown: document.getElementById("simCooldown"),
+  simArrows: document.getElementById("simArrows"),
+  hitDot: document.getElementById("hitDot"),
 };
 
 function updateHUD(now) {
-  // Draw-distance bar
-  el.drawBar.style.width = (drawPowerSmooth * 100).toFixed(0) + "%";
-  el.drawVal.textContent = (drawPowerSmooth * 100).toFixed(0) + "%";
+  // ── Draw-distance bar (legacy + sim mirror) ──
+  const drawPct = (drawPowerSmooth * 100).toFixed(0);
+  el.drawBar.style.width = drawPct + "%";
+  el.drawVal.textContent = drawPct + "%";
+  el.simDrawBar.style.width = drawPct + "%";
+  el.simDrawVal.textContent = drawPct + "%";
 
-  // Gesture state
+  // ── Gesture state ──
   let label, cls;
   if (now - lastFireTime < 500 && lastFireMode) {
     label = lastFireMode === "sut" ? "SUT FIRE" : "AM FIRE";
@@ -1346,39 +1641,85 @@ function updateHUD(now) {
   }
   el.gesture.textContent = label;
   el.gesture.className = "state " + cls;
+  el.simGesture.textContent = label;
 
-  // Reload cooldown bar
+  // ── Reload cooldown ──
   const cdLeft = Math.max(0, lastFireTime + currentCooldown - now);
   if (cdLeft > 0 && currentCooldown > 0) {
     el.cdBar.style.width = ((cdLeft / currentCooldown) * 100).toFixed(0) + "%";
     el.cdVal.textContent = (cdLeft / 1000).toFixed(2) + "s";
+    el.simCooldown.textContent = (cdLeft / 1000).toFixed(2) + "s";
   } else {
     el.cdBar.style.width = "0%";
     el.cdVal.textContent = "READY";
+    el.simCooldown.textContent = "READY";
   }
 
-  // Finger-state chips
+  // ── Finger-state chips (legacy only) ──
   setChip(el.chipThumb,  "Thumb",  curFinger.thumb);
   setChip(el.chipIndex,  "Index",  curFinger.index);
   setChip(el.chipMiddle, "Middle", curFinger.middle);
 
-  el.chipMode.textContent = "Last: " + (lastFireMode === "sut" ? "SUT" : lastFireMode === "am" ? "AM" : "-");
+  const lastModeLabel = lastFireMode === "sut" ? "SUT" : lastFireMode === "am" ? "AM" : "-";
+  el.chipMode.textContent = "Last: " + lastModeLabel;
   el.chipMode.className = "chip" + (lastFireMode ? " mode-" + lastFireMode : "");
   el.chipArrows.textContent = "Arrows: " + arrows.length;
 
-  // Target score
-  el.scoreVal.textContent = score;
-  el.hitInfo.textContent = "Hits " + hitCount + " / Shots " + shotCount;
+  // ── Score + hit info ──
+  el.scoreVal.textContent = hitCount;
+  el.hitInfo.textContent = "of " + shotCount + " shots";
+  el.simHits.textContent = hitCount;
+  el.simShots.textContent = shotCount;
+  el.simLast.textContent = lastShotResult ? (lastShotResult + " · " + lastModeLabel) : "—";
+  el.simArrows.textContent = arrows.length;
 
-  // Hit '+score' flash
+  // ── Top-center phase + stability readout ──
+  //  • While the breath HUD is mid-cycle, mirror its label (Inhale/Hold/etc.).
+  //  • Right after firing, show "Release" briefly.
+  //  • Otherwise, follow the gesture state (Aiming / Idle).
+  let phase = "Ready";
+  if (now - lastFireTime < 700 && lastFireMode) {
+    phase = "Release";
+  } else if (breathHudShown && currentBreathMode) {
+    const info = computeBreathPhase(performance.now() - breathStartMs, currentBreathMode.phases);
+    if (info.done) phase = "Release";
+    else if (info.phase) phase = info.phase.label;
+  } else if (state === "AIMING") {
+    phase = "Aim";
+  } else {
+    phase = handsPresent.draw ? "Ready" : "Show hands";
+  }
+  el.simPhase.textContent = phase;
+  el.simStability.textContent = "stability: " + stabilityPct + "%";
+
+  // ── HIT / MISS center flash ──
   const fa = now - lastHitTime;
-  if (fa < 800) {
-    const t = fa / 800;
-    el.hitFlash.textContent = "+" + lastHitScore;
+  if (fa < 900 && lastShotResult) {
+    const t = fa / 900;
+    el.hitFlash.textContent = lastShotResult;
+    el.hitFlash.style.color = lastShotResult === "HIT" ? "#BF1B1B" : "rgba(255,255,255,.85)";
     el.hitFlash.style.opacity = (1 - t).toFixed(2);
-    el.hitFlash.style.transform = "translate(-50%,-50%) scale(" + (1 + t * 0.6).toFixed(2) + ")";
+    el.hitFlash.style.transform = "translate(-50%,-50%) scale(" + (1 + t * 0.25).toFixed(2) + ")";
   } else {
     el.hitFlash.style.opacity = 0;
+  }
+
+  // ── Hit dot — visualises the landing point on the reticle ──
+  if (fa < 1400 && lastShotResult) {
+    // Map the (offX, offY) landing point inside ±halfW × ±halfH to the reticle's
+    // 240px circle.  Out-of-zone misses end up just outside the rim.
+    const nx = lastHitOffsetX / TARGET.halfW;     // -∞ .. +∞ (1.0 = edge)
+    const ny = lastHitOffsetY / TARGET.halfH;
+    // The 3D scene is mirrored via CSS scaleX(-1) on the canvas, but the hitDot
+    // overlay lives outside that flipped layer — flip x here to match the photo view.
+    const px = -nx * 90;                          // 90px ≈ inner rim of reticle
+    const py = -ny * 90;                          // y inverted (canvas y goes down)
+    el.hitDot.style.transform =
+      "translate(calc(-50% + " + px.toFixed(1) + "px), calc(-50% + " + py.toFixed(1) + "px))";
+    el.hitDot.style.background = lastShotResult === "HIT" ? "#BF1B1B" : "rgba(255,255,255,.6)";
+    el.hitDot.style.opacity = (1 - fa / 1400).toFixed(2);
+  } else {
+    el.hitDot.style.opacity = 0;
   }
 }
 
@@ -1396,6 +1737,14 @@ function animate() {
 
   // Smooth draw-power
   drawPowerSmooth += (drawPower - drawPowerSmooth) * 0.3;
+
+  // Track bow-hand position history for jitter measurement
+  if (latestBowCenter) {
+    stabHist.push({ x: latestBowCenter.x, y: latestBowCenter.y });
+    if (stabHist.length > STAB_HIST_LEN) stabHist.shift();
+  }
+  // Refresh the stability metric (used by both the HUD and the fire wobble)
+  stabilityPct = computeStability();
 
   updateArrows(now);
   updateTarget(now);
@@ -1456,6 +1805,7 @@ async function startCamera() {
     await mpCamera.start();
 
     document.getElementById("startScreen").style.display = "none";
+    document.body.classList.add("sim");      // unlocks the photo-bg + overlay UI layer
     el.status.textContent = "Tracking — show both hands to the webcam";
   } catch (e) {
     errBox.textContent =
