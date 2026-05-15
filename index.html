@@ -45,42 +45,75 @@
   }
   body.sim #webcam, body.sim #webcamLabel { display: block; }
 
-  /* ───────── Minimal in-simulation HUD ─────────
-     Hidden during the hero/landing screen. Surfaces only when the
-     simulation is actually running. Replaces the prior dense panel
-     with a couple of tabular-numeric chips. */
+  /* ───────── In-simulation HUD (dense panel) ─────────
+     Hidden on the hero/landing screen; appears once a breath mode is
+     selected and the body gets the .sim class. */
   #ui {
-    position: fixed; top: 22px; left: 36px; right: 36px; z-index: 20;
+    position: fixed; top: 80px; left: 36px; right: 380px; z-index: 20;
     display: none;
-    justify-content: space-between; align-items: flex-start;
+    flex-direction: column; gap: 8px;
     pointer-events: none;
-    letter-spacing: -0.04em;
   }
   body.sim #ui { display: flex; }
-  .hudGroup {
-    display: flex; flex-direction: column; gap: 4px;
-    font-size: 11px; color: var(--muted);
-    text-transform: uppercase;
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--text);
+    padding: 16px 20px;
+    pointer-events: auto;
   }
-  .hudGroup.right { align-items: flex-end; }
-  .hudVal {
-    font-size: 14px; color: var(--text);
-    font-variant-numeric: tabular-nums; letter-spacing: -0.06em;
+  .title {
+    font-size: 11px; font-weight: 700; color: var(--text);
+    text-transform: uppercase; letter-spacing: 0;
+    padding-bottom: 12px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
   }
-  .hudDrawWrap {
-    width: 140px; height: 2px; background: var(--line);
-    margin-top: 4px;
+  .row { display: flex; align-items: center; gap: 12px; margin: 8px 0; font-size: 12px; }
+  .label {
+    width: 140px; color: var(--muted); flex-shrink: 0;
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0;
   }
-  .hudDrawWrap > span {
-    display: block; height: 100%; background: var(--text);
-    width: 0%; transition: width .08s linear;
+  .bar {
+    flex: 1; height: 6px; background: transparent;
+    border: 1px solid var(--text); overflow: hidden;
   }
-  .hudGesture {
-    font-size: 11px; color: var(--text);
+  .fill { height: 100%; width: 0%; transition: width .08s linear; }
+  .fill.draw { background: var(--accent); }
+  .fill.cd   { background: var(--text); }
+  .val { width: 64px; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .score {
+    font-size: 28px; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.08em;
+  }
+  .scoreUnit {
+    font-size: 10px; color: var(--muted);
+    margin-left: 2px; text-transform: uppercase;
+  }
+  .state {
+    font-size: 12px; font-weight: 700; padding: 4px 10px;
+    border: 1px solid var(--text);
+    text-transform: uppercase; letter-spacing: -0.04em;
+    background: transparent;
+  }
+  .state.idle { color: var(--muted); border-color: var(--line); }
+  .state.aim  { color: var(--accent); border-color: var(--accent); }
+  .state.sut  { color: var(--bg);  background: var(--accent); border-color: var(--accent); }
+  .state.am   { color: var(--bg);  background: var(--text);   border-color: var(--text); }
+  .chips { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .chip {
+    font-size: 10px; padding: 3px 8px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--muted);
     text-transform: uppercase; letter-spacing: 0;
   }
-  .hudGesture.idle { color: var(--muted); }
-  .hudGesture.fire { color: var(--accent); }
+  .chip.folded   { color: var(--accent); border-color: var(--accent); }
+  .chip.mode-sut { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .chip.mode-am  { background: var(--text);   color: var(--bg); border-color: var(--text); }
+  .hint {
+    font-size: 10px; color: var(--muted);
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid var(--line);
+    line-height: 1.6; text-transform: uppercase;
+  }
 
   /* ───────── Top navigation (matches the seewi homepage reference) ───────── */
   #topNav {
@@ -329,15 +362,43 @@
   </div>
 </nav>
 
-<!-- Minimal in-sim HUD: hits/shots top-left, gesture + draw bar top-right -->
+<!-- In-sim dense HUD (restored from pre-hero version, adapted for HIT/MISS) -->
 <div id="ui">
-  <div class="hudGroup">
-    <span>Hits / Shots</span>
-    <span id="hudCount" class="hudVal">0 / 0</span>
-  </div>
-  <div class="hudGroup right">
-    <span id="hudGesture" class="hudGesture idle">Idle</span>
-    <div class="hudDrawWrap"><span id="hudDraw"></span></div>
+  <div class="panel">
+    <div class="title">SEEWI — Live Status</div>
+    <div class="row">
+      <span class="label">Hits</span>
+      <span id="scoreVal" class="score">0</span>
+      <span id="hitInfo" class="val" style="width:auto; margin-left:auto">of 0 shots</span>
+    </div>
+    <div class="row">
+      <span class="label">Draw distance</span>
+      <div class="bar"><div id="drawBar" class="fill draw"></div></div>
+      <span id="drawVal" class="val">0%</span>
+    </div>
+    <div class="row">
+      <span class="label">Right-hand gesture</span>
+      <span id="gestureState" class="state idle">Idle</span>
+    </div>
+    <div class="row">
+      <span class="label">Reload cooldown</span>
+      <div class="bar"><div id="cdBar" class="fill cd"></div></div>
+      <span id="cdVal" class="val">READY</span>
+    </div>
+    <div class="row">
+      <span class="label">Finger state</span>
+      <div class="chips">
+        <span id="chipThumb"  class="chip">Thumb ○</span>
+        <span id="chipIndex"  class="chip">Index ○</span>
+        <span id="chipMiddle" class="chip">Middle ○</span>
+        <span id="chipMode"   class="chip">Last: -</span>
+        <span id="chipArrows" class="chip">Arrows: 0</span>
+      </div>
+    </div>
+    <div class="hint">
+      <b style="color:var(--accent)">SUT</b> — fist → thumb·index·middle <b>extend together</b> · linear · CD 1.5s &nbsp;//&nbsp;
+      <b style="color:var(--text)">AM</b> — keep fist → <b>flick thumb up only</b> · arc · CD 0.7s
+    </div>
   </div>
 </div>
 
@@ -1265,12 +1326,11 @@ function updateTarget(now) {
    Visual refresh: bow / string / nocked arrow
    ========================================================================= */
 function updateBowVisual() {
-  // Hero state — present the bow as a still-life on the right of the canvas.
-  // Slow Y rotation gives the homepage a subtle sense of life without
-  // distracting from the typography on the left.
+  // Hero state — present the bow as a still product shot on the right of
+  // the canvas. No idle rotation; the bow stays motionless.
   if (appState === "hero") {
     bowGroup.position.lerp(HERO_BOW_POS, 0.08);
-    bowGroup.rotation.y += 0.0035;
+    bowGroup.rotation.y = 0;
     bowHandMarker.visible = false;
     drawHandMarker.visible = false;
     nockedArrow.visible = false;
@@ -1394,37 +1454,67 @@ function onResults(results) {
 }
 
 /* =========================================================================
-   Minimal HUD refresh — hits/shots, gesture state, draw bar, HIT/MISS flash
+   HUD refresh — dense status panel + HIT/MISS center flash
    ========================================================================= */
 const el = {
-  count: document.getElementById("hudCount"),
-  gesture: document.getElementById("hudGesture"),
-  draw: document.getElementById("hudDraw"),
-  hitFlash: document.getElementById("hitFlash"),
-  status: document.getElementById("status"),
+  drawBar:   document.getElementById("drawBar"),
+  drawVal:   document.getElementById("drawVal"),
+  gesture:   document.getElementById("gestureState"),
+  cdBar:     document.getElementById("cdBar"),
+  cdVal:     document.getElementById("cdVal"),
+  chipThumb: document.getElementById("chipThumb"),
+  chipIndex: document.getElementById("chipIndex"),
+  chipMiddle:document.getElementById("chipMiddle"),
+  chipMode:  document.getElementById("chipMode"),
+  chipArrows:document.getElementById("chipArrows"),
+  scoreVal:  document.getElementById("scoreVal"),
+  hitInfo:   document.getElementById("hitInfo"),
+  hitFlash:  document.getElementById("hitFlash"),
+  status:    document.getElementById("status"),
 };
 
 let lastShotResult = null;   // 'HIT' | 'MISS' for the most recent shot
 
 function updateHUD(now) {
   // Draw-distance bar
-  el.draw.style.width = (drawPowerSmooth * 100).toFixed(0) + "%";
+  el.drawBar.style.width = (drawPowerSmooth * 100).toFixed(0) + "%";
+  el.drawVal.textContent = (drawPowerSmooth * 100).toFixed(0) + "%";
 
-  // Gesture state (compact)
+  // Gesture state pill
   let label, cls;
   if (now - lastFireTime < 500 && lastFireMode) {
-    label = lastFireMode === "sut" ? "SUT · FIRE" : "AM · FIRE";
-    cls = "fire";
+    label = lastFireMode === "sut" ? "SUT FIRE" : "AM FIRE";
+    cls = lastFireMode;
   } else if (state === "AIMING") {
-    label = "Aiming"; cls = "";
+    label = "Aiming / Drawing"; cls = "aim";
   } else {
-    label = handsPresent.draw ? "Idle" : "No right hand"; cls = "idle";
+    label = handsPresent.draw ? "Idle" : "Idle (no right hand)"; cls = "idle";
   }
   el.gesture.textContent = label;
-  el.gesture.className = "hudGesture " + cls;
+  el.gesture.className = "state " + cls;
 
-  // Hit / shot counter
-  el.count.textContent = hitCount + " / " + shotCount;
+  // Reload cooldown bar
+  const cdLeft = Math.max(0, lastFireTime + currentCooldown - now);
+  if (cdLeft > 0 && currentCooldown > 0) {
+    el.cdBar.style.width = ((cdLeft / currentCooldown) * 100).toFixed(0) + "%";
+    el.cdVal.textContent = (cdLeft / 1000).toFixed(2) + "s";
+  } else {
+    el.cdBar.style.width = "0%";
+    el.cdVal.textContent = "READY";
+  }
+
+  // Finger-state chips
+  setChip(el.chipThumb,  "Thumb",  curFinger.thumb);
+  setChip(el.chipIndex,  "Index",  curFinger.index);
+  setChip(el.chipMiddle, "Middle", curFinger.middle);
+
+  el.chipMode.textContent = "Last: " + (lastFireMode === "sut" ? "SUT" : lastFireMode === "am" ? "AM" : "-");
+  el.chipMode.className = "chip" + (lastFireMode ? " mode-" + lastFireMode : "");
+  el.chipArrows.textContent = "Arrows: " + arrows.length;
+
+  // Hits / shots — adapted for HIT/MISS judgement (score = total hits)
+  el.scoreVal.textContent = hitCount;
+  el.hitInfo.textContent = "of " + shotCount + " shots";
 
   // Centered HIT / MISS flash
   const fa = now - lastHitTime;
@@ -1437,6 +1527,11 @@ function updateHUD(now) {
   } else {
     el.hitFlash.style.opacity = 0;
   }
+}
+
+function setChip(node, name, folded) {
+  node.textContent = name + (folded ? " ● fold" : " ○ open");
+  node.className = "chip" + (folded ? " folded" : "");
 }
 
 /* =========================================================================
