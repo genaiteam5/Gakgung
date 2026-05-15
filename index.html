@@ -104,6 +104,65 @@
     text-shadow: 0 0 24px rgba(255,210,74,.85), 0 2px 10px rgba(0,0,0,.6);
     opacity: 0; pointer-events: none;
   }
+
+  /* === 호흡 수련 — 홈 메뉴 타일 === */
+  #startScreen h1 { margin-bottom: 6px; }
+  #startScreen h2 {
+    font-size: 18px; color: #ffd24a; margin-bottom: 6px;
+    font-weight: bold; letter-spacing: 1px;
+  }
+  #startScreen .subtitle {
+    font-size: 13px; color: #93a4bf; margin-bottom: 28px;
+    line-height: 1.7; max-width: 720px;
+  }
+  .modeTiles {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    width: 100%; max-width: 920px; margin-bottom: 22px;
+  }
+  .modeTile {
+    background: rgba(20,28,48,.78); border: 1px solid #2a3a58;
+    border-radius: 14px; padding: 26px 22px 22px 22px; cursor: pointer;
+    color: #e8eef7; font-family: inherit; text-align: left;
+    transition: transform .15s, border-color .15s, box-shadow .15s, background .15s;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  }
+  .modeTile:hover {
+    transform: translateY(-4px); border-color: #ff3b9d;
+    box-shadow: 0 12px 38px rgba(255,59,157,.28);
+    background: rgba(28,38,62,.92);
+  }
+  .modeTile .tShape { width: 52px; height: 52px; margin-bottom: 4px; }
+  .modeTile .tSub   { font-size: 11px; color: #ff8fc0; letter-spacing: 1.8px; font-weight: bold; }
+  .modeTile .tName  { font-size: 19px; font-weight: bold; color: #ffffff; }
+  .modeTile .tDesc  { font-size: 12px; color: #93a4bf; line-height: 1.65; margin-top: 2px; }
+
+  /* === 호흡 수련 — 미니 HUD (Three.js 도형 progress ring + 타이머) === */
+  #medHud {
+    position: fixed; top: 12px; right: 14px; z-index: 21;
+    width: 180px; padding: 14px 14px 12px 14px;
+    background: rgba(12,18,30,.82); border: 1px solid #243049;
+    border-radius: 12px; backdrop-filter: blur(6px);
+    display: none; flex-direction: column; align-items: center;
+    box-shadow: 0 6px 24px rgba(0,0,0,.55);
+  }
+  #medHud.show { display: flex; }
+  #medMode {
+    font-size: 11px; font-weight: bold; color: #ff3b9d;
+    letter-spacing: 1.8px; margin-bottom: 8px; text-align: center;
+  }
+  #medCanvasWrap { position: relative; width: 140px; height: 140px; }
+  #medCanvas { width: 140px; height: 140px; display: block; }
+  #medTimer {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 900; color: #ffffff;
+    text-shadow: 0 2px 8px rgba(0,0,0,.75);
+    pointer-events: none; font-variant-numeric: tabular-nums;
+  }
+  #medLabel {
+    margin-top: 6px; font-size: 12px; color: #cfe0ff;
+    letter-spacing: 1.5px; opacity: .92; font-weight: bold;
+  }
 </style>
 </head>
 <body>
@@ -162,18 +221,50 @@
 <div id="status">초기화 대기 중…</div>
 <div id="hitFlash"></div>
 
-<!-- 시작 화면 -->
+<!-- 호흡 수련 미니 HUD: Three.js 도형 + 잔여시간 + 단계 라벨 -->
+<div id="medHud">
+  <div id="medMode">호흡 모드</div>
+  <div id="medCanvasWrap">
+    <canvas id="medCanvas" width="140" height="140"></canvas>
+    <div id="medTimer">0s</div>
+  </div>
+  <div id="medLabel">대기</div>
+</div>
+
+<!-- 홈 화면: 호흡 수련 모드 선택 → 클릭 시 활쏘기 시뮬레이션 시작 -->
 <div id="startScreen">
   <h1>🏹 국궁 활쏘기 시뮬레이터</h1>
-  <h2>Google MediaPipe Hands &times; Three.js — 단일 파일 프로토타입</h2>
-  <div class="guide">
-    1. <b>왼손</b>은 활을 잡듯 펴서 앞에 두고, <b>오른손</b>은 시위를 당기듯 사용합니다.<br />
-    2. 오른손으로 <b>주먹을 꽉 쥐면</b> 시위를 당기는 '조준' 상태가 됩니다. 양손을 멀리 벌릴수록 더 강하게 당겨집니다.<br />
-    3. <b class="sut">숫깍지 풀그립</b> — 주먹에서 엄지·검지·중지를 <b>한 번에 확 펴면</b> 묵직하고 평평한 직선 궤적으로 발사됩니다.<br />
-    4. <b class="am">암깍지</b> — 검지·중지는 주먹 그대로 두고 <b>엄지손가락만 위로 까딱 튕기면</b> 하늘로 둥글게 솟는 곡선 궤적으로 발사됩니다 (연사 가능).<br />
-    5. 웹캠 사용 권한을 허용해 주세요. (file:// 에서 카메라가 막히면 localhost 로 서빙하세요.)
+  <h2>호흡 수련 모드 선택</h2>
+  <p class="subtitle">
+    타일을 클릭하면 해당 호흡 모드가 활성화되며 활쏘기 시뮬레이션이 시작됩니다.<br />
+    선택한 호흡 모드의 도형 가이드가 우상단에 표시되고, 정지·긴 날숨 구간에서는 화면 외곽이 어두워집니다.
+  </p>
+  <div class="modeTiles">
+    <button class="modeTile" data-mode="box">
+      <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
+        <rect x="4" y="4" width="42" height="42" rx="4" fill="none" stroke="#ff3b9d" stroke-width="4"/>
+      </svg>
+      <div class="tSub">BALANCE · 4 · 4 · 4 · 4</div>
+      <div class="tName">박스 호흡</div>
+      <div class="tDesc">4초 들숨 → 4초 정지 → 4초 날숨 → 4초 정지. 균형 잡힌 호흡으로 떨림을 가라앉힙니다.</div>
+    </button>
+    <button class="modeTile" data-mode="natural">
+      <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
+        <circle cx="25" cy="25" r="21" fill="none" stroke="#ff3b9d" stroke-width="4"/>
+      </svg>
+      <div class="tSub">FOCUS · 2 · 2 · 3</div>
+      <div class="tName">자연 호흡 멈춤</div>
+      <div class="tDesc">짧은 들숨 → 절반 날숨 → 2~3초 정지. 정지 순간이 가장 집중되는 실전형 사법.</div>
+    </button>
+    <button class="modeTile" data-mode="478">
+      <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
+        <polygon points="25,5 45,42 5,42" fill="none" stroke="#ff3b9d" stroke-width="4" stroke-linejoin="round"/>
+      </svg>
+      <div class="tSub">CALM · 4 · 7 · 8</div>
+      <div class="tName">4-7-8 호흡</div>
+      <div class="tDesc">4초 들숨 → 7초 정지 → 8초 긴 날숨. 깊은 이완으로 흔들림을 완전히 진정시킵니다.</div>
+    </button>
   </div>
-  <button id="startBtn">웹캠 시작하기</button>
   <div id="errorBox"></div>
 </div>
 
@@ -210,6 +301,261 @@ const TARGET = {
   moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // 좌우/상하 이동 폭·속도
   rings: [[0.8, 10], [1.6, 8], [2.4, 6], [3.2, 4], [4.0, 2]],  // [반지름, 점수] 안→밖
 };
+
+/* =========================================================================
+   호흡 수련 (Breath Meditation) 모듈
+   ─ 3가지 호흡 모드: Box(4-4-4-4) / Natural Pause(2-2-3) / 4-7-8
+   ─ 우상단 미니 HUD: Three.js 로 도형(사각/원/삼각) progress ring 렌더
+   ─ Math.sin 기반의 부드러운 호흡 깊이 곡선 함수 포함
+   ─ 기존 활쏘기 animate() 루프에 updateBreathing(now) 한 줄 호출로 통합
+   ========================================================================= */
+const BREATH_MODES = {
+  box: {
+    name: "박스 호흡",
+    shape: "square",
+    // 4-4-4-4: 들숨(확장) → 정지(채움) → 날숨(수축) → 정지(비움) 반복
+    phases: [
+      { label: "들숨",  type: "inhale",    dur: 4 },
+      { label: "정지",  type: "holdFull",  dur: 4 },
+      { label: "날숨",  type: "exhale",    dur: 4 },
+      { label: "정지",  type: "holdEmpty", dur: 4 },
+    ],
+  },
+  natural: {
+    name: "자연 호흡 멈춤",
+    shape: "circle",
+    // 짧은 들숨 → 절반 날숨 → 2~3초 정지 (정지 순간이 가장 긴장된 집중)
+    phases: [
+      { label: "들숨",    type: "inhale",    dur: 2 },
+      { label: "반날숨",  type: "exhale",    dur: 2 },
+      { label: "정지",    type: "holdEmpty", dur: 3 },
+    ],
+  },
+  "478": {
+    name: "4-7-8 호흡",
+    shape: "triangle",
+    // 4초 들숨 → 7초 정지 → 8초 긴 날숨 (깊은 이완)
+    phases: [
+      { label: "들숨",    type: "inhale",   dur: 4 },
+      { label: "정지",    type: "holdFull", dur: 7 },
+      { label: "긴 날숨", type: "exhale",   dur: 8 },
+    ],
+  },
+};
+
+let currentBreathMode = null;          // 선택된 호흡 모드 객체
+let breathStartMs = 0;                  // 호흡 사이클 시작 시각 (performance.now)
+let lastPhaseIndex = -1;                // 단계 전환 감지(종소리)용
+let vignetteAmount = 0;                 // 비네팅 강도 (0~1, 부드러운 보간)
+let medTimerEl, medLabelEl, medModeEl;  // HUD DOM 참조 (지연 바인딩)
+
+// ─── Three.js 미니 씬 (호흡 HUD 캔버스 전용) ───
+let medRenderer, medScene, medCamera, medSegments = [];
+
+/* 도형 둘레 위의 좌표 (u: 0~1, 12시 시작 시계방향)
+   ─ shape: 'square' | 'circle' | 'triangle' */
+function perimeterPoint(shape, u) {
+  if (shape === "circle") {
+    const a = -Math.PI / 2 + u * Math.PI * 2;
+    const R = 0.86;
+    return { x: Math.cos(a) * R, y: Math.sin(a) * R };
+  }
+  if (shape === "square") {
+    const s = 0.78;           // 한 변 절반 길이 (중심 0,0)
+    const total = 8 * s;      // 둘레 = 4변 × 2s
+    const d = u * total;
+    if (d < s)   return { x: d,              y:  s };
+    if (d < 3*s) return { x: s,              y:  s - (d - s) };
+    if (d < 5*s) return { x: s - (d - 3*s),  y: -s };
+    if (d < 7*s) return { x: -s,             y: -s + (d - 5*s) };
+                 return { x: -s + (d - 7*s), y:  s };
+  }
+  if (shape === "triangle") {
+    const R = 0.95;            // 외접원 반지름 (꼭짓점 12시/4시/8시)
+    const v = [
+      { x: 0,                            y:  R },
+      { x:  R * Math.sin( 2*Math.PI/3),  y:  R * Math.cos( 2*Math.PI/3) },
+      { x:  R * Math.sin(-2*Math.PI/3),  y:  R * Math.cos(-2*Math.PI/3) },
+    ];
+    const sideLen = Math.hypot(v[1].x - v[0].x, v[1].y - v[0].y);
+    const total = 3 * sideLen;
+    const d = u * total;
+    const i = Math.min(2, Math.floor(d / sideLen));
+    const fr = (d - i * sideLen) / sideLen;
+    const a = v[i], b = v[(i + 1) % 3];
+    return { x: a.x + (b.x - a.x) * fr, y: a.y + (b.y - a.y) * fr };
+  }
+  return { x: 0, y: 0 };
+}
+
+/* 도형 둘레를 N개의 짧은 segment 메시로 분해해 두꺼운 progress ring 생성 */
+function buildSegmentRing(shape, segCount) {
+  const out = [];
+  for (let i = 0; i < segCount; i++) {
+    const u  = i / segCount;
+    const p1 = perimeterPoint(shape, u);
+    const p2 = perimeterPoint(shape, (i + 1) / segCount);
+    const cx = (p1.x + p2.x) / 2;
+    const cy = (p1.y + p2.y) / 2;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const segLen = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x2a2f44 });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(segLen * 0.94, 0.16), mat);
+    mesh.position.set(cx, cy, 0);
+    mesh.rotation.z = ang;
+    out.push({ mesh, mat, u });
+  }
+  return out;
+}
+
+/* 호흡 HUD Three.js 미니 씬 초기화 — 모드 선택 시 호출 */
+function initMedHud(shape) {
+  const canvas = document.getElementById("medCanvas");
+  if (!medRenderer) {
+    medRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    medRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    medRenderer.setSize(140, 140, false);
+    medRenderer.setClearColor(0x000000, 0);
+    medScene = new THREE.Scene();
+    medCamera = new THREE.OrthographicCamera(-1.15, 1.15, 1.15, -1.15, 0.1, 10);
+    medCamera.position.z = 5;
+  } else {
+    // 모드 재선택 시 기존 세그먼트 정리
+    for (const s of medSegments) {
+      s.mesh.geometry.dispose();
+      s.mat.dispose();
+      medScene.remove(s.mesh);
+    }
+  }
+  const segCount = shape === "circle" ? 64 : shape === "square" ? 48 : 36;
+  medSegments = buildSegmentRing(shape, segCount);
+  for (const s of medSegments) medScene.add(s.mesh);
+}
+
+/* 호흡 단계 계산 — 어떤 phases 배열이든 받아서 현재 상태 반환 (순수 함수).
+   elapsedMs + phases → { phaseIndex, phase, remaining(잔여초), progress(단계 내 0~1) } */
+function computeBreathPhase(elapsedMs, phases) {
+  const totalSec = phases.reduce((s, p) => s + p.dur, 0);
+  const tSec = (elapsedMs / 1000) % totalSec;
+  let acc = 0;
+  for (let i = 0; i < phases.length; i++) {
+    const p = phases[i];
+    if (tSec < acc + p.dur) {
+      const inPhase = tSec - acc;
+      return { phaseIndex: i, phase: p, remaining: p.dur - inPhase, progress: inPhase / p.dur };
+    }
+    acc += p.dur;
+  }
+  const last = phases[phases.length - 1];
+  return { phaseIndex: phases.length - 1, phase: last, remaining: 0, progress: 1 };
+}
+
+/* 호흡 깊이(0=완전 비움, 1=완전 채움) — Math.sin/cos 으로 부드러운 곡선.
+   외부 코드(예: 활 떨림 감쇠 계수)에서 자유롭게 활용 가능. */
+function breathDepth(phaseType, progress) {
+  switch (phaseType) {
+    case "inhale":    return Math.sin(progress * Math.PI / 2);  // 0 → 1 (사인)
+    case "exhale":    return Math.cos(progress * Math.PI / 2);  // 1 → 0 (코사인)
+    case "holdFull":  return 1;
+    case "holdEmpty": return 0;
+    default:          return 0;
+  }
+}
+
+/* ─── WebAudio: 단계 전환 시 부드러운 종소리 (브라우저 네이티브 API) ─── */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { audioCtx = null; }
+  }
+}
+function chime(freq) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = "sine"; osc.frequency.value = freq;
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(0.05, t0 + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t0); osc.stop(t0 + 0.7);
+}
+
+/* ─── 매 프레임 호출: HUD/링/타이머/비네팅 일괄 갱신 ───
+   기존 활쏘기 animate() 안에 `updateBreathing(now);` 한 줄만 추가하면 통합됨. */
+function updateBreathing(now) {
+  if (!currentBreathMode) return;
+  const info = computeBreathPhase(now - breathStartMs, currentBreathMode.phases);
+
+  // (1) 단계 전환 종소리
+  if (info.phaseIndex !== lastPhaseIndex) {
+    lastPhaseIndex = info.phaseIndex;
+    const f = { inhale: 660, exhale: 392, holdFull: 523, holdEmpty: 440 }[info.phase.type] || 440;
+    chime(f);
+  }
+
+  // (2) 도형 ring progress 채움 (현재 단계 내 0→1)
+  const FILL = 0xff3b9d;   // hot pink — 채워진 부분
+  const EMPTY = 0x2a2f44;  // 어두운 회청색 — 빈 부분
+  const fillTo = info.progress;
+  for (const s of medSegments) s.mat.color.setHex(s.u <= fillTo ? FILL : EMPTY);
+
+  // (3) 도형 중앙 Void 에 잔여초 + 단계 라벨
+  if (medTimerEl) medTimerEl.textContent = Math.ceil(info.remaining) + "s";
+  if (medLabelEl) medLabelEl.textContent = info.phase.label;
+
+  // (4) 비네팅 강도 — '정지' 또는 '긴 날숨'(≥6초)에 외곽 어두워짐 (부드러운 보간)
+  let target = 0;
+  if (info.phase.type === "holdFull" || info.phase.type === "holdEmpty") target = 0.55;
+  if (info.phase.type === "exhale" && info.phase.dur >= 6) target = 0.7;
+  vignetteAmount += (target - vignetteAmount) * 0.04;
+  if (vignetteUniform) vignetteUniform.value = vignetteAmount;
+
+  // (5) 미니 씬 렌더
+  if (medRenderer) medRenderer.render(medScene, medCamera);
+}
+
+/* =========================================================================
+   포스트 프로세싱: 비네팅 (호흡 정지·긴 날숨 구간에서 외곽 어둡게)
+   ─ 카메라 흔들림은 사용하지 않음. 카메라 고정 + 화면 외곽 점진 어둡게.
+   ─ 메인 씬 → WebGLRenderTarget → 풀스크린 quad(vignette shader) → 화면
+   ========================================================================= */
+let renderTarget, postScene, postCamera, postMat, vignetteUniform;
+
+function initPostProcessing() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderTarget = new THREE.WebGLRenderTarget(w, h, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat, samples: 4,        // 멀티샘플 AA
+  });
+  postScene = new THREE.Scene();
+  postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  vignetteUniform = { value: 0 };
+  postMat = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: renderTarget.texture }, uVignette: vignetteUniform },
+    vertexShader: [
+      "varying vec2 vUv;",
+      "void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }",
+    ].join("\n"),
+    fragmentShader: [
+      "varying vec2 vUv;",
+      "uniform sampler2D tDiffuse;",
+      "uniform float uVignette;",
+      "void main(){",
+      "  vec4 c = texture2D(tDiffuse, vUv);",
+      "  vec2 d = vUv - 0.5;",
+      "  float r = length(d) * 1.414;",
+      "  float v = smoothstep(0.35, 0.95, r) * uVignette;",
+      "  c.rgb *= (1.0 - v);",
+      "  gl_FragColor = c;",
+      "}",
+    ].join("\n"),
+  });
+  postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
+}
 
 /* =========================================================================
    전역 상태
@@ -338,6 +684,7 @@ function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (renderTarget) renderTarget.setSize(window.innerWidth, window.innerHeight);
 }
 
 /* 화살 메쉬 (로컬 -Z 방향을 향함 → lookAt 으로 진행방향 정렬) */
@@ -795,8 +1142,17 @@ function animate() {
   updateTarget(now);
   updateBowVisual();
   updateHUD(now);
+  updateBreathing(now);   // ← 호흡 HUD + 비네팅 강도 갱신 (단 한 줄로 통합)
 
-  renderer.render(scene, camera);
+  // 메인 씬 → 렌더 타겟 → 비네팅 셰이더 quad → 화면 (Post-processing)
+  if (renderTarget) {
+    renderer.setRenderTarget(renderTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(postScene, postCamera);
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 /* =========================================================================
@@ -854,8 +1210,27 @@ async function startCamera() {
    부트스트랩
    ========================================================================= */
 initThree();
+initPostProcessing();
+medTimerEl = document.getElementById("medTimer");
+medLabelEl = document.getElementById("medLabel");
+medModeEl  = document.getElementById("medMode");
 animate();
-document.getElementById("startBtn").addEventListener("click", startCamera);
+
+// 홈 화면 — 호흡 모드 타일을 클릭하면 해당 모드로 시뮬레이션 시작
+document.querySelectorAll(".modeTile").forEach((tile) => {
+  tile.addEventListener("click", () => {
+    const modeKey = tile.dataset.mode;
+    currentBreathMode = BREATH_MODES[modeKey];
+    if (!currentBreathMode) return;
+    ensureAudio();
+    breathStartMs = performance.now();
+    lastPhaseIndex = -1;
+    initMedHud(currentBreathMode.shape);
+    medModeEl.textContent = currentBreathMode.name;
+    document.getElementById("medHud").classList.add("show");
+    startCamera();
+  });
+});
 </script>
 </body>
 </html>
