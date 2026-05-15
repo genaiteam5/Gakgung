@@ -353,8 +353,9 @@
   <div id="errorBox"></div>
 </div>
 
-<!-- ===== CDN: Three.js + MediaPipe Hands ===== -->
+<!-- ===== CDN: Three.js + GLTFLoader + MediaPipe Hands ===== -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
@@ -744,6 +745,61 @@ let handsPresent = { bow: false, draw: false };
 const smoothedNock = new THREE.Vector3(0, 5, 3.4);
 const clock = new THREE.Clock();
 
+// GLB model caches — kept as references so they can be re-cloned later if needed.
+let bowGltf = null, gakjiGltf = null;
+
+/* =========================================================================
+   GLB asset loading — bow (활수정.glb) + gakji finger guard (깍지.glb).
+   Both files live in /images and are URL-encoded because of Korean filenames.
+   Auto-fit bounding box to a target world size and apply a sensible default
+   orientation so the bow points its limbs up/down with the string toward
+   the viewer (the user's first-person eye).
+   ========================================================================= */
+function autoFitModel(root, targetSize) {
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const s = targetSize / maxDim;
+  root.scale.multiplyScalar(s);
+  // Re-center after scaling
+  const box2 = new THREE.Box3().setFromObject(root);
+  const center = box2.getCenter(new THREE.Vector3());
+  root.position.sub(center);
+}
+
+function loadBowModel() {
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    "images/%ED%99%9C%EC%88%98%EC%A0%95.glb",  // 활수정.glb (URL-encoded)
+    (gltf) => {
+      bowGltf = gltf;
+      const m = gltf.scene;
+      autoFitModel(m, 5.2);     // bow ~5 units tall to match arm-length scene scale
+      m.rotation.y = Math.PI;   // face the camera (string side toward user)
+      bowGroup.clear();
+      bowGroup.add(m);
+    },
+    undefined,
+    (err) => console.warn("Failed to load bow GLB", err)
+  );
+}
+
+function loadGakjiModel() {
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    "images/%EA%B9%8D%EC%A7%80.glb",            // 깍지.glb (URL-encoded)
+    (gltf) => {
+      gakjiGltf = gltf;
+      const m = gltf.scene;
+      autoFitModel(m, 0.9);     // small accessory — fits on a finger/thumb
+      drawHandMarker.clear();
+      drawHandMarker.add(m);
+    },
+    undefined,
+    (err) => console.warn("Failed to load gakji GLB", err)
+  );
+}
+
 /* =========================================================================
    Three.js initialization
    ========================================================================= */
@@ -757,9 +813,11 @@ function initThree() {
   scene.background = new THREE.Color(0xf8f8f8);
   scene.fog = new THREE.Fog(0xf8f8f8, 70, 320);
 
-  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
-  camera.position.set(0, 8, 18);
-  camera.lookAt(0, 4, -28);
+  // First-person view — camera sits roughly where the archer's eye would be,
+  // just behind the typical bow-hand position (latestBowCenter hovers around y≈5, z≈3).
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 600);
+  camera.position.set(0, 5.5, 9);
+  camera.lookAt(0, 5.5, -100);
 
   // Lighting
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d0d0, 0.95));
@@ -793,21 +851,12 @@ function initThree() {
   // Distant target
   buildTarget();
 
-  // Bow (simple 'C'-shaped torus + grip)
+  // Bow container — actual mesh is loaded asynchronously from images/활수정.glb.
+  // A temporary placeholder lets the scene render normally during the GLB fetch.
   bowGroup = new THREE.Group();
-  const limb = new THREE.Mesh(
-    new THREE.TorusGeometry(2.6, 0.16, 10, 40, Math.PI * 1.15),
-    new THREE.MeshStandardMaterial({ color: 0x191919, roughness: 0.6 })
-  );
-  limb.rotation.z = Math.PI / 2 - (Math.PI * 1.15) / 2;
-  bowGroup.add(limb);
-  const grip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.22, 0.22, 1.1, 10),
-    new THREE.MeshStandardMaterial({ color: 0x191919 })
-  );
-  bowGroup.add(grip);
   bowGroup.position.set(0, 5, 3);
   scene.add(bowGroup);
+  loadBowModel();
 
   // Bowstring (3-point line: top nock — draw point — bottom nock)
   bowString = new THREE.Line(
@@ -823,17 +872,18 @@ function initThree() {
   nockedArrow.visible = false;
   scene.add(nockedArrow);
 
-  // Hand position markers
+  // Hand position markers.
+  // bowHandMarker — small reference sphere for the left (bow) hand (hidden by default in first-person).
+  // drawHandMarker — Group container that will host the gakji (깍지) GLB on the right hand.
   bowHandMarker = new THREE.Mesh(
     new THREE.SphereGeometry(0.32, 16, 12),
     new THREE.MeshStandardMaterial({ color: 0x191919 })
   );
-  drawHandMarker = new THREE.Mesh(
-    new THREE.SphereGeometry(0.32, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0xa52020 })
-  );
-  bowHandMarker.visible = drawHandMarker.visible = false;
+  drawHandMarker = new THREE.Group();
+  bowHandMarker.visible = false;
+  drawHandMarker.visible = false;
   scene.add(bowHandMarker, drawHandMarker);
+  loadGakjiModel();
 
   window.addEventListener("resize", onResize);
 }
@@ -1131,7 +1181,11 @@ function updateBowVisual() {
   }
 
   drawHandMarker.visible = !!latestDrawPoint;
-  if (latestDrawPoint) drawHandMarker.position.copy(latestDrawPoint);
+  if (latestDrawPoint) {
+    drawHandMarker.position.copy(latestDrawPoint);
+    // Gakji rides on the thumb — point it at the bow so it visually engages the string
+    if (drawHandMarker.children.length > 0) drawHandMarker.lookAt(bowGroup.position);
+  }
 
   // String draw point: right-hand position while aiming, otherwise the bow center
   let nock;
