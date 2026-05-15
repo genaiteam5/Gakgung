@@ -353,9 +353,12 @@
   <div id="errorBox"></div>
 </div>
 
-<!-- ===== CDN: Three.js + GLTFLoader + MediaPipe Hands ===== -->
-<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- ===== CDN: Three.js + GLTFLoader + MediaPipe Hands =====
+     Pinned to three@0.147.0 — the last release that still ships the
+     non-module `examples/js/` loaders. Newer versions (r148+) require
+     ES-module/import-map setup, which this single-file build avoids. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
