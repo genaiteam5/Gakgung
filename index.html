@@ -3,276 +3,351 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>국궁 활쏘기 시뮬레이터 — MediaPipe Hands + Three.js</title>
+<title>Korean Archery Simulator — MediaPipe Hands + Three.js</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --sut: #ff3b30;   /* 숫깍지 = 붉은색 */
-    --am:  #3b82f6;   /* 암깍지 = 푸른색 */
-    --aim: #f5c518;
-    --ok:  #34d058;
-    --bg:  #0a0e16;
+    --bg:     #F8F8F8;
+    --text:   #191919;
+    --accent: #A52020;
+    --muted:  rgba(25, 25, 25, 0.55);
+    --line:   rgba(25, 25, 25, 0.18);
+    --surface: rgba(248, 248, 248, 0.92);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
-  body { font-family: "Consolas", "D2Coding", monospace; color: #e8eef7; }
+  body {
+    font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--text);
+    letter-spacing: -0.06em;
+    line-height: 1.3;
+    font-feature-settings: "tnum" 1;
+  }
 
-  /* Three.js 캔버스 — 좌우 반전(거울 모드) */
+  /* Three.js canvas — horizontally flipped (mirror mode) */
   #three { position: fixed; inset: 0; transform: scaleX(-1); }
 
-  /* 웹캠 디버그 캔버스 (우하단 PIP) */
+  /* Webcam debug canvas (bottom-right PIP) */
   #webcam {
-    position: fixed; right: 14px; bottom: 14px;
+    position: fixed; right: 16px; bottom: 16px;
     width: 320px; height: 240px;
-    border: 2px solid #2c3a52; border-radius: 8px;
+    border: 1px solid var(--text);
     background: #000; z-index: 20;
-    box-shadow: 0 6px 24px rgba(0,0,0,.55);
   }
   #webcamLabel {
-    position: fixed; right: 18px; bottom: 256px; z-index: 21;
-    font-size: 11px; color: #8aa0c0; letter-spacing: .5px;
+    position: fixed; right: 20px; bottom: 260px; z-index: 21;
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0;
   }
 
-  /* 상단 UI 패널 */
+  /* Top UI panel */
   #ui {
-    position: fixed; top: 12px; left: 12px; right: 360px; z-index: 20;
+    position: fixed; top: 16px; left: 16px; right: 360px; z-index: 20;
     display: flex; flex-direction: column; gap: 8px;
   }
   .panel {
-    background: rgba(12,18,30,.82); border: 1px solid #243049;
-    border-radius: 10px; padding: 12px 16px; backdrop-filter: blur(6px);
+    background: var(--surface);
+    border: 1px solid var(--text);
+    padding: 16px 20px;
   }
-  .title { font-size: 13px; font-weight: bold; color: #9fc2ff; letter-spacing: 1px; margin-bottom: 10px; }
-  .row { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: 12px; }
-  .label { width: 132px; color: #93a4bf; flex-shrink: 0; }
-  .bar { flex: 1; height: 14px; background: #1a2336; border-radius: 7px; overflow: hidden; border: 1px solid #2a3854; }
-  .fill { height: 100%; width: 0%; transition: width .08s linear; border-radius: 7px; }
-  .fill.draw { background: linear-gradient(90deg,#2e7d32,#f5c518,#ff3b30); }
-  .fill.cd   { background: linear-gradient(90deg,#ff3b30,#f5c518); }
-  .val { width: 64px; text-align: right; color: #cfe0ff; font-variant-numeric: tabular-nums; }
-  .score { font-size: 22px; font-weight: bold; color: #ffd24a; font-variant-numeric: tabular-nums; }
-  .scoreUnit { font-size: 12px; color: #93a4bf; margin-left: -4px; }
+  .title {
+    font-size: 11px; font-weight: 700; color: var(--text);
+    text-transform: uppercase; letter-spacing: 0;
+    padding-bottom: 12px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .row { display: flex; align-items: center; gap: 12px; margin: 8px 0; font-size: 12px; }
+  .label {
+    width: 140px; color: var(--muted); flex-shrink: 0;
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0;
+  }
+  .bar {
+    flex: 1; height: 6px; background: transparent;
+    border: 1px solid var(--text); overflow: hidden;
+  }
+  .fill { height: 100%; width: 0%; transition: width .08s linear; }
+  .fill.draw { background: var(--accent); }
+  .fill.cd   { background: var(--text); }
+  .val { width: 64px; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .score {
+    font-size: 28px; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.08em;
+  }
+  .scoreUnit {
+    font-size: 10px; color: var(--muted);
+    margin-left: 2px; text-transform: uppercase;
+  }
 
   .state {
-    font-size: 15px; font-weight: bold; padding: 3px 14px; border-radius: 6px;
-    background: #1a2336; border: 1px solid #2a3854;
+    font-size: 12px; font-weight: 700; padding: 4px 10px;
+    border: 1px solid var(--text);
+    text-transform: uppercase; letter-spacing: -0.04em;
+    background: transparent;
   }
-  .state.idle { color: #93a4bf; }
-  .state.aim  { color: var(--aim); border-color: var(--aim); box-shadow: 0 0 10px rgba(245,197,24,.35); }
-  .state.sut  { color: #fff; background: var(--sut); border-color: var(--sut); }
-  .state.am   { color: #fff; background: var(--am);  border-color: var(--am); }
+  .state.idle { color: var(--muted); border-color: var(--line); }
+  .state.aim  { color: var(--accent); border-color: var(--accent); }
+  .state.sut  { color: var(--bg);  background: var(--accent); border-color: var(--accent); }
+  .state.am   { color: var(--bg);  background: var(--text);   border-color: var(--text); }
 
   .chips { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
   .chip {
-    font-size: 11px; padding: 3px 9px; border-radius: 5px;
-    background: #1a2336; border: 1px solid #2a3854; color: #6b7d99;
+    font-size: 10px; padding: 3px 8px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0;
   }
-  .chip.folded { background: #14361b; border-color: #2e7d32; color: #7ee08a; }
-  .chip.mode-sut { background: var(--sut); color:#fff; border-color: var(--sut); }
-  .chip.mode-am  { background: var(--am);  color:#fff; border-color: var(--am); }
-  .hint { font-size: 11px; color: #6b7d99; margin-top: 6px; line-height: 1.6; }
+  .chip.folded   { color: var(--accent); border-color: var(--accent); }
+  .chip.mode-sut { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .chip.mode-am  { background: var(--text);   color: var(--bg); border-color: var(--text); }
+  .hint {
+    font-size: 10px; color: var(--muted);
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid var(--line);
+    line-height: 1.6; text-transform: uppercase;
+  }
 
-  /* 시작 화면 */
+  /* Start screen */
   #startScreen {
     position: fixed; inset: 0; z-index: 50;
-    background: radial-gradient(ellipse at center, #16203a, #060912);
+    background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; padding: 30px;
+    text-align: center; padding: 40px;
   }
-  #startScreen h1 { font-size: 30px; color: #cfe0ff; margin-bottom: 6px; }
-  #startScreen h2 { font-size: 14px; color: #6f86ad; font-weight: normal; margin-bottom: 24px; }
-  .guide { max-width: 640px; text-align: left; font-size: 13px; line-height: 1.9; color: #aebfdc; margin-bottom: 26px; }
-  .guide b.sut { color: var(--sut); }
-  .guide b.am  { color: var(--am); }
+  #startScreen h1 {
+    font-size: 36px; color: var(--text); margin-bottom: 8px;
+    font-weight: 700; letter-spacing: -0.08em;
+  }
+  #startScreen h1.logo {
+    margin-bottom: 14px;
+    line-height: 0;
+  }
+  #startScreen h1.logo img {
+    width: 320px; max-width: 60vw; height: auto;
+    display: block;
+  }
+  .guide {
+    max-width: 640px; text-align: left; font-size: 13px; line-height: 1.5;
+    color: var(--text); margin-bottom: 26px;
+  }
+  .guide b.sut { color: var(--accent); }
+  .guide b.am  { color: var(--text); }
   #startBtn {
-    font-family: inherit; font-size: 16px; font-weight: bold;
-    padding: 14px 42px; border-radius: 10px; cursor: pointer;
-    background: linear-gradient(135deg,#3b82f6,#1d4ed8); color: #fff; border: none;
-    box-shadow: 0 8px 30px rgba(59,130,246,.45);
+    font-family: inherit; font-size: 13px; font-weight: 700;
+    padding: 14px 40px; cursor: pointer;
+    background: var(--text); color: var(--bg); border: 1px solid var(--text);
+    text-transform: uppercase; letter-spacing: -0.04em;
+    transition: background .12s, color .12s, border-color .12s;
   }
-  #startBtn:hover { filter: brightness(1.12); }
+  #startBtn:hover { background: var(--accent); border-color: var(--accent); }
   #errorBox {
-    margin-top: 18px; color: #ff8a80; font-size: 12px; max-width: 560px; line-height: 1.6;
+    margin-top: 18px; color: var(--accent);
+    font-size: 12px; max-width: 560px; line-height: 1.5;
   }
   #status {
-    position: fixed; left: 12px; bottom: 12px; z-index: 20;
-    font-size: 11px; color: #6b7d99;
+    position: fixed; left: 16px; bottom: 16px; z-index: 20;
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase;
   }
-  /* 명중 '+점수' 플래시 */
+  /* Hit '+score' flash */
   #hitFlash {
     position: fixed; top: 30%; left: 50%; transform: translate(-50%,-50%);
-    z-index: 20; font-size: 54px; font-weight: bold; color: #ffd24a;
-    text-shadow: 0 0 24px rgba(255,210,74,.85), 0 2px 10px rgba(0,0,0,.6);
+    z-index: 20; font-size: 64px; font-weight: 700; color: var(--accent);
+    letter-spacing: -0.08em;
     opacity: 0; pointer-events: none;
   }
 
-  /* === 호흡 수련 — 홈 메뉴 타일 === */
-  #startScreen h1 { margin-bottom: 6px; }
+  /* === Breath training — home menu tiles === */
   #startScreen h2 {
-    font-size: 18px; color: #ffd24a; margin-bottom: 6px;
-    font-weight: bold; letter-spacing: 1px;
+    font-size: 13px; color: var(--accent); margin-bottom: 8px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0;
   }
   #startScreen .subtitle {
-    font-size: 13px; color: #93a4bf; margin-bottom: 28px;
-    line-height: 1.7; max-width: 720px;
+    font-size: 13px; color: var(--muted); margin-bottom: 32px;
+    line-height: 1.5; max-width: 720px;
   }
   .modeTiles {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
-    width: 100%; max-width: 920px; margin-bottom: 22px;
+    display: flex; flex-direction: column; gap: 10px;
+    width: 100%; max-width: 720px; margin-bottom: 22px;
   }
   .modeTile {
-    background: rgba(20,28,48,.78); border: 1px solid #2a3a58;
-    border-radius: 14px; padding: 26px 22px 22px 22px; cursor: pointer;
-    color: #e8eef7; font-family: inherit; text-align: left;
-    transition: transform .15s, border-color .15s, box-shadow .15s, background .15s;
-    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--text);
+    padding: 20px 24px; cursor: pointer;
+    color: var(--text); font-family: inherit; text-align: left;
+    transition: background .15s, color .15s;
+    display: grid;
+    grid-template-columns: 56px 140px 1fr;
+    align-items: center;
+    column-gap: 24px;
+    letter-spacing: -0.06em;
   }
-  .modeTile:hover {
-    transform: translateY(-4px); border-color: #ff3b9d;
-    box-shadow: 0 12px 38px rgba(255,59,157,.28);
-    background: rgba(28,38,62,.92);
+  .modeTile:hover { background: var(--text); color: var(--bg); }
+  .modeTile:hover .tSub { color: var(--bg); }
+  .modeTile:hover .tDesc { color: rgba(248, 248, 248, 0.65); }
+  .modeTile:hover .tShape * { stroke: var(--bg) !important; }
+  .modeTile .tShape {
+    width: 44px; height: 44px;
+    grid-row: span 2;
   }
-  .modeTile .tShape { width: 52px; height: 52px; margin-bottom: 4px; }
-  .modeTile .tSub   { font-size: 11px; color: #ff8fc0; letter-spacing: 1.8px; font-weight: bold; }
-  .modeTile .tName  { font-size: 19px; font-weight: bold; color: #ffffff; }
-  .modeTile .tDesc  { font-size: 12px; color: #93a4bf; line-height: 1.65; margin-top: 2px; }
+  .modeTile .tSub   {
+    font-size: 10px; color: var(--accent);
+    letter-spacing: 0; font-weight: 700; text-transform: uppercase;
+    align-self: end;
+  }
+  .modeTile .tName  {
+    font-size: 22px; font-weight: 700; color: inherit;
+    letter-spacing: -0.06em;
+    grid-column: 2;
+    align-self: start;
+  }
+  .modeTile .tDesc  {
+    font-size: 12px; color: var(--muted);
+    line-height: 1.5;
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
 
-  /* === 호흡 수련 — 미니 HUD (Three.js 도형 progress ring + 타이머) === */
+  /* === Breath training — mini HUD (Three.js shape progress ring + timer) === */
   #medHud {
-    position: fixed; top: 12px; right: 14px; z-index: 21;
-    width: 180px; padding: 14px 14px 12px 14px;
-    background: rgba(12,18,30,.82); border: 1px solid #243049;
-    border-radius: 12px; backdrop-filter: blur(6px);
+    position: fixed; top: 16px; right: 16px; z-index: 21;
+    width: 180px; padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--text);
     display: none; flex-direction: column; align-items: center;
-    box-shadow: 0 6px 24px rgba(0,0,0,.55);
   }
   #medHud.show { display: flex; }
   #medMode {
-    font-size: 11px; font-weight: bold; color: #ff3b9d;
-    letter-spacing: 1.8px; margin-bottom: 8px; text-align: center;
+    font-size: 10px; font-weight: 700; color: var(--accent);
+    letter-spacing: 0; margin-bottom: 10px; text-align: center;
+    text-transform: uppercase;
   }
   #medCanvasWrap { position: relative; width: 140px; height: 140px; }
   #medCanvas { width: 140px; height: 140px; display: block; }
   #medTimer {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 34px; font-weight: 900; color: #ffffff;
-    text-shadow: 0 2px 8px rgba(0,0,0,.75);
+    font-size: 36px; font-weight: 700; color: var(--text);
+    letter-spacing: -0.08em;
     pointer-events: none; font-variant-numeric: tabular-nums;
   }
   #medLabel {
-    margin-top: 6px; font-size: 12px; color: #cfe0ff;
-    letter-spacing: 1.5px; opacity: .92; font-weight: bold;
+    margin-top: 8px; font-size: 11px; color: var(--text);
+    letter-spacing: 0; font-weight: 700;
+    text-transform: uppercase;
   }
-  /* 한 사이클 완료 — 발사 신호 강조 (글로우 펄스) */
+  /* One cycle complete — emphasize the FIRE signal */
   @keyframes readyPulse {
-    0%, 100% { text-shadow: 0 0 12px rgba(57,230,160,.7),  0 2px 8px rgba(0,0,0,.7); }
-    50%      { text-shadow: 0 0 26px rgba(57,230,160,1.0), 0 2px 8px rgba(0,0,0,.7); }
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
   }
   #medTimer.ready {
-    color: #39e6a0; font-size: 28px;
+    color: var(--accent); font-size: 28px;
     animation: readyPulse 1s ease-in-out infinite;
   }
-  #medLabel.ready { color: #39e6a0; opacity: 1; }
+  #medLabel.ready { color: var(--accent); }
 </style>
 </head>
 <body>
 
-<!-- 3D 씬 (좌우 반전 적용) -->
+<!-- 3D scene (mirror-flipped) -->
 <canvas id="three"></canvas>
 
-<!-- 웹캠 + 스켈레톤 디버그 오버레이 -->
-<div id="webcamLabel">웹캠 디버그 (거울 모드)</div>
+<!-- Webcam + skeleton debug overlay -->
+<div id="webcamLabel">Webcam debug (mirror)</div>
 <canvas id="webcam" width="320" height="240"></canvas>
 
-<!-- MediaPipe 입력용 비디오 (화면 밖에 숨김) -->
+<!-- Hidden video element for MediaPipe input -->
 <video class="input_video" playsinline muted></video>
 
-<!-- 상단 HUD -->
+<!-- Top HUD -->
 <div id="ui">
   <div class="panel">
-    <div class="title">국궁 활쏘기 시뮬레이터 — 실시간 상태</div>
+    <div class="title">Korean Archery Simulator — Live Status</div>
     <div class="row">
-      <span class="label">과녁 점수</span>
+      <span class="label">Target score</span>
       <span id="scoreVal" class="score">0</span>
-      <span class="scoreUnit">점</span>
-      <span id="hitInfo" class="val" style="width:auto; margin-left:auto">명중 0 / 발사 0</span>
+      <span class="scoreUnit">pts</span>
+      <span id="hitInfo" class="val" style="width:auto; margin-left:auto">Hits 0 / Shots 0</span>
     </div>
     <div class="row">
-      <span class="label">당김 거리 (Draw)</span>
+      <span class="label">Draw distance</span>
       <div class="bar"><div id="drawBar" class="fill draw"></div></div>
       <span id="drawVal" class="val">0%</span>
     </div>
     <div class="row">
-      <span class="label">오른손 제스처</span>
-      <span id="gestureState" class="state idle">대기</span>
+      <span class="label">Right-hand gesture</span>
+      <span id="gestureState" class="state idle">Idle</span>
     </div>
     <div class="row">
-      <span class="label">재장전 쿨타임</span>
+      <span class="label">Reload cooldown</span>
       <div class="bar"><div id="cdBar" class="fill cd"></div></div>
       <span id="cdVal" class="val">READY</span>
     </div>
     <div class="row">
-      <span class="label">손가락 판별</span>
+      <span class="label">Finger state</span>
       <div class="chips">
-        <span id="chipThumb"  class="chip">엄지 ○</span>
-        <span id="chipIndex"  class="chip">검지 ○</span>
-        <span id="chipMiddle" class="chip">중지 ○</span>
-        <span id="chipMode"   class="chip">최근: -</span>
-        <span id="chipArrows" class="chip">화살: 0</span>
+        <span id="chipThumb"  class="chip">Thumb ○</span>
+        <span id="chipIndex"  class="chip">Index ○</span>
+        <span id="chipMiddle" class="chip">Middle ○</span>
+        <span id="chipMode"   class="chip">Last: -</span>
+        <span id="chipArrows" class="chip">Arrows: 0</span>
       </div>
     </div>
     <div class="hint">
-      <b style="color:var(--sut)">숫깍지</b>: 주먹 → 엄지·검지·중지 <b>동시에 확 펴기</b> (빠른 직선·쿨타임 1.5s) &nbsp;|&nbsp;
-      <b style="color:var(--am)">암깍지</b>: 주먹 유지 → <b>엄지만 위로 튕기기</b> (높은 곡선·쿨타임 0.7s)
+      <b style="color:var(--accent)">SUT</b> — fist → thumb·index·middle <b>extend together</b> · linear · CD 1.5s &nbsp;//&nbsp;
+      <b style="color:var(--text)">AM</b> — keep fist → <b>flick thumb up only</b> · arc · CD 0.7s
     </div>
   </div>
 </div>
 
-<div id="status">초기화 대기 중…</div>
+<div id="status">Initializing…</div>
 <div id="hitFlash"></div>
 
-<!-- 호흡 수련 미니 HUD: Three.js 도형 + 잔여시간 + 단계 라벨 -->
+<!-- Breath training mini HUD: Three.js shape + remaining time + phase label -->
 <div id="medHud">
-  <div id="medMode">호흡 모드</div>
+  <div id="medMode">BREATH MODE</div>
   <div id="medCanvasWrap">
     <canvas id="medCanvas" width="140" height="140"></canvas>
     <div id="medTimer">0s</div>
   </div>
-  <div id="medLabel">대기</div>
+  <div id="medLabel">Idle</div>
 </div>
 
-<!-- 홈 화면: 호흡 수련 모드 선택 → 클릭 시 활쏘기 시뮬레이션 시작 -->
+<!-- Home screen: select a breathing mode to start the archery simulation -->
 <div id="startScreen">
-  <h1>🏹 국궁 활쏘기 시뮬레이터</h1>
-  <h2>호흡 수련 모드 선택</h2>
+  <h1 class="logo"><img src="images/seewi%20logo.png" alt="seewi" /></h1>
+  <h2>Select Breathing Mode</h2>
   <p class="subtitle">
-    타일을 클릭하면 해당 호흡 모드가 활성화되며 활쏘기 시뮬레이션이 시작됩니다.<br />
-    시위를 당기면 우상단에 호흡 가이드가 떠 <b style="color:#fff">한 사이클</b>을 진행하고, 호흡이 끝나는 순간 <b style="color:#39e6a0">발사 신호</b>가 표시됩니다.
+    Click a tile to activate its breathing mode and start the simulation.<br />
+    Draw the bow and a breathing guide appears at the top-right — it runs <b style="color:var(--text)">one cycle</b>, and the <b style="color:var(--accent)">FIRE signal</b> appears the moment the cycle ends.
   </p>
   <div class="modeTiles">
     <button class="modeTile" data-mode="box">
       <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
-        <rect x="4" y="4" width="42" height="42" rx="4" fill="none" stroke="#ff3b9d" stroke-width="4"/>
+        <rect x="4" y="4" width="42" height="42" rx="4" fill="none" stroke="#191919" stroke-width="4"/>
       </svg>
       <div class="tSub">BALANCE · 4 · 4 · 4 · 4</div>
-      <div class="tName">박스 호흡</div>
-      <div class="tDesc">4초 들숨 → 4초 정지 → 4초 날숨 → 4초 정지. 균형 잡힌 호흡으로 떨림을 가라앉힙니다.</div>
+      <div class="tName">Box Breath</div>
+      <div class="tDesc">4s inhale → 4s hold → 4s exhale → 4s hold. A balanced rhythm that settles tremor before the release.</div>
     </button>
     <button class="modeTile" data-mode="natural">
       <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
-        <circle cx="25" cy="25" r="21" fill="none" stroke="#ff3b9d" stroke-width="4"/>
+        <circle cx="25" cy="25" r="21" fill="none" stroke="#191919" stroke-width="4"/>
       </svg>
       <div class="tSub">FOCUS · 2 · 2 · 3</div>
-      <div class="tName">자연 호흡 멈춤</div>
-      <div class="tDesc">짧은 들숨 → 절반 날숨 → 2~3초 정지. 정지 순간이 가장 집중되는 실전형 사법.</div>
+      <div class="tName">Natural Pause</div>
+      <div class="tDesc">Short inhale → half exhale → 2–3s hold. The pause is the moment of sharpest focus — a practical archery rhythm.</div>
     </button>
     <button class="modeTile" data-mode="478">
       <svg class="tShape" viewBox="0 0 50 50" aria-hidden="true">
-        <polygon points="25,5 45,42 5,42" fill="none" stroke="#ff3b9d" stroke-width="4" stroke-linejoin="round"/>
+        <polygon points="25,5 45,42 5,42" fill="none" stroke="#191919" stroke-width="4" stroke-linejoin="round"/>
       </svg>
       <div class="tSub">CALM · 4 · 7 · 8</div>
-      <div class="tName">4-7-8 호흡</div>
-      <div class="tDesc">4초 들숨 → 7초 정지 → 8초 긴 날숨. 깊은 이완으로 흔들림을 완전히 진정시킵니다.</div>
+      <div class="tName">4-7-8 Breath</div>
+      <div class="tDesc">4s inhale → 7s hold → 8s long exhale. Deep relaxation that fully calms residual sway.</div>
     </button>
   </div>
   <div id="errorBox"></div>
@@ -288,81 +363,81 @@
 "use strict";
 
 /* =========================================================================
-   설정값 (튜닝 포인트)
+   Config (tuning points)
    ========================================================================= */
 const CONFIG = {
-  GRAVITY: 0.022,            // 가상 중력 가속도 g (프레임당)
-  // 숫깍지 풀그립: 빠르고 평평한 직선형 궤적
-  SUT_SPEED: 2.4, SUT_SPEED_GAIN: 1.7,   // 전진 속도(매우 강함)
-  SUT_VY: 0.35,   SUT_VY_GAIN: 0.20,     // 초기 상승(낙차 적음)
-  SUT_COOLDOWN: 1500,                    // 재장전 쿨타임 1.5초
-  // 암깍지: 느리지만 높이 솟구치는 곡선형 호(Arc)
-  AM_SPEED: 0.9,  AM_SPEED_GAIN: 0.6,    // 전진 속도(풀그립의 약 절반)
-  AM_VY: 0.95,    AM_VY_GAIN: 0.45,      // 초기 상승(큰 낙차의 곡선)
-  AM_COOLDOWN: 700,                      // 재장전 쿨타임 0.7초 (숫깍지보다 빠르되 연사는 아님)
-  DRAW_MIN: 0.12, DRAW_MAX: 0.62,        // 당김 거리 정규화 범위
-  MAX_TRAIL: 48,                         // 잔상 선 최대 점 개수
-  MAX_ARROWS: 14,                        // 동시 화살 개수 제한
+  GRAVITY: 0.022,            // virtual gravitational acceleration g (per frame)
+  // SUT (full-grip release): fast, flat, linear trajectory
+  SUT_SPEED: 2.4, SUT_SPEED_GAIN: 1.7,   // forward speed (very strong)
+  SUT_VY: 0.35,   SUT_VY_GAIN: 0.20,     // initial lift (low drop)
+  SUT_COOLDOWN: 1500,                    // reload cooldown 1.5s
+  // AM (thumb-flick release): slow but soars high, large arc
+  AM_SPEED: 0.9,  AM_SPEED_GAIN: 0.6,    // forward speed (about half of SUT)
+  AM_VY: 0.95,    AM_VY_GAIN: 0.45,      // initial lift (big drop along the curve)
+  AM_COOLDOWN: 700,                      // reload cooldown 0.7s (faster than SUT, not rapid-fire)
+  DRAW_MIN: 0.12, DRAW_MAX: 0.62,        // normalization range for draw distance
+  MAX_TRAIL: 48,                         // max number of trail line points
+  MAX_ARROWS: 14,                        // max concurrent arrows
 };
 
-/* 이동 과녁 설정 */
+/* Moving target settings */
 const TARGET = {
-  baseX: 0, y: 7, z: -100,                       // 기준 위치 (저 멀리)
-  moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // 좌우/상하 이동 폭·속도
-  rings: [[0.8, 10], [1.6, 8], [2.4, 6], [3.2, 4], [4.0, 2]],  // [반지름, 점수] 안→밖
+  baseX: 0, y: 7, z: -100,                       // base position (far away)
+  moveAmpX: 7, moveAmpY: 1.6, moveSpeed: 0.0006, // horizontal/vertical amplitude · speed
+  rings: [[0.8, 10], [1.6, 8], [2.4, 6], [3.2, 4], [4.0, 2]],  // [radius, points] inner → outer
 };
 
 /* =========================================================================
-   호흡 수련 (Breath Meditation) 모듈
-   ─ 3가지 호흡 모드: Box(4-4-4-4) / Natural Pause(2-2-3) / 4-7-8
-   ─ 우상단 미니 HUD: Three.js 로 도형(사각/원/삼각) progress ring 렌더
-   ─ Math.sin 기반의 부드러운 호흡 깊이 곡선 함수 포함
-   ─ 기존 활쏘기 animate() 루프에 updateBreathing(now) 한 줄 호출로 통합
+   Breath Meditation module
+   ─ 3 modes: Box (4-4-4-4) / Natural Pause (2-2-3) / 4-7-8
+   ─ Top-right mini HUD: a shape (square/circle/triangle) progress ring drawn with Three.js
+   ─ Includes a smooth breath-depth curve function based on Math.sin
+   ─ Hooks into the existing archery animate() loop with a single updateBreathing(now) call
    ========================================================================= */
 const BREATH_MODES = {
   box: {
-    name: "박스 호흡",
+    name: "Box Breath",
     shape: "square",
-    // 4-4-4-4: 들숨(확장) → 정지(채움) → 날숨(수축) → 정지(비움) 반복
+    // 4-4-4-4: inhale (expand) → hold full → exhale (contract) → hold empty
     phases: [
-      { label: "들숨",  type: "inhale",    dur: 4 },
-      { label: "정지",  type: "holdFull",  dur: 4 },
-      { label: "날숨",  type: "exhale",    dur: 4 },
-      { label: "정지",  type: "holdEmpty", dur: 4 },
+      { label: "Inhale", type: "inhale",    dur: 4 },
+      { label: "Hold",   type: "holdFull",  dur: 4 },
+      { label: "Exhale", type: "exhale",    dur: 4 },
+      { label: "Hold",   type: "holdEmpty", dur: 4 },
     ],
   },
   natural: {
-    name: "자연 호흡 멈춤",
+    name: "Natural Pause",
     shape: "circle",
-    // 짧은 들숨 → 절반 날숨 → 2~3초 정지 (정지 순간이 가장 긴장된 집중)
+    // short inhale → half exhale → 2-3s hold (pause is the moment of focus)
     phases: [
-      { label: "들숨",    type: "inhale",    dur: 2 },
-      { label: "반날숨",  type: "exhale",    dur: 2 },
-      { label: "정지",    type: "holdEmpty", dur: 3 },
+      { label: "Inhale",      type: "inhale",    dur: 2 },
+      { label: "Half exhale", type: "exhale",    dur: 2 },
+      { label: "Hold",        type: "holdEmpty", dur: 3 },
     ],
   },
   "478": {
-    name: "4-7-8 호흡",
+    name: "4-7-8 Breath",
     shape: "triangle",
-    // 4초 들숨 → 7초 정지 → 8초 긴 날숨 (깊은 이완)
+    // 4s inhale → 7s hold → 8s long exhale (deep relaxation)
     phases: [
-      { label: "들숨",    type: "inhale",   dur: 4 },
-      { label: "정지",    type: "holdFull", dur: 7 },
-      { label: "긴 날숨", type: "exhale",   dur: 8 },
+      { label: "Inhale",      type: "inhale",   dur: 4 },
+      { label: "Hold",        type: "holdFull", dur: 7 },
+      { label: "Long exhale", type: "exhale",   dur: 8 },
     ],
   },
 };
 
-let currentBreathMode = null;          // 선택된 호흡 모드 객체
-let breathStartMs = 0;                  // 호흡 사이클 시작 시각 (performance.now)
-let lastPhaseIndex = -1;                // 단계 전환 감지(종소리)용
-let vignetteAmount = 0;                 // 비네팅 강도 (0~1, 부드러운 보간)
-let medTimerEl, medLabelEl, medModeEl;  // HUD DOM 참조 (지연 바인딩)
+let currentBreathMode = null;          // currently selected breath-mode object
+let breathStartMs = 0;                  // breath cycle start time (performance.now)
+let lastPhaseIndex = -1;                // for detecting phase transitions (chime trigger)
+let vignetteAmount = 0;                 // vignette intensity (0–1, smoothly interpolated)
+let medTimerEl, medLabelEl, medModeEl;  // HUD DOM references (bound lazily)
 
-// ─── Three.js 미니 씬 (호흡 HUD 캔버스 전용) ───
+// ─── Three.js mini scene (dedicated to the breath HUD canvas) ───
 let medRenderer, medScene, medCamera, medSegments = [];
 
-/* 도형 둘레 위의 좌표 (u: 0~1, 12시 시작 시계방향)
+/* Coordinates along the shape perimeter (u: 0–1, starts at 12 o'clock, clockwise)
    ─ shape: 'square' | 'circle' | 'triangle' */
 function perimeterPoint(shape, u) {
   if (shape === "circle") {
@@ -371,8 +446,8 @@ function perimeterPoint(shape, u) {
     return { x: Math.cos(a) * R, y: Math.sin(a) * R };
   }
   if (shape === "square") {
-    const s = 0.78;           // 한 변 절반 길이 (중심 0,0)
-    const total = 8 * s;      // 둘레 = 4변 × 2s
+    const s = 0.78;           // half side length (centered at 0,0)
+    const total = 8 * s;      // perimeter = 4 sides × 2s
     const d = u * total;
     if (d < s)   return { x: d,              y:  s };
     if (d < 3*s) return { x: s,              y:  s - (d - s) };
@@ -381,7 +456,7 @@ function perimeterPoint(shape, u) {
                  return { x: -s + (d - 7*s), y:  s };
   }
   if (shape === "triangle") {
-    const R = 0.95;            // 외접원 반지름 (꼭짓점 12시/4시/8시)
+    const R = 0.95;            // circumscribed-circle radius (vertices at 12/4/8 o'clock)
     const v = [
       { x: 0,                            y:  R },
       { x:  R * Math.sin( 2*Math.PI/3),  y:  R * Math.cos( 2*Math.PI/3) },
@@ -398,7 +473,7 @@ function perimeterPoint(shape, u) {
   return { x: 0, y: 0 };
 }
 
-/* 도형 둘레를 N개의 짧은 segment 메시로 분해해 두꺼운 progress ring 생성 */
+/* Build a thick progress ring by splitting the shape perimeter into N short segment meshes */
 function buildSegmentRing(shape, segCount) {
   const out = [];
   for (let i = 0; i < segCount; i++) {
@@ -410,7 +485,7 @@ function buildSegmentRing(shape, segCount) {
     const dx = p2.x - p1.x, dy = p2.y - p1.y;
     const segLen = Math.hypot(dx, dy);
     const ang = Math.atan2(dy, dx);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x2a2f44 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0xd6d6d6 });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(segLen * 0.94, 0.16), mat);
     mesh.position.set(cx, cy, 0);
     mesh.rotation.z = ang;
@@ -419,7 +494,7 @@ function buildSegmentRing(shape, segCount) {
   return out;
 }
 
-/* 호흡 HUD Three.js 미니 씬 초기화 — 모드 선택 시 호출 */
+/* Initialize the breath-HUD Three.js mini scene — called when a mode is selected */
 function initMedHud(shape) {
   const canvas = document.getElementById("medCanvas");
   if (!medRenderer) {
@@ -431,7 +506,7 @@ function initMedHud(shape) {
     medCamera = new THREE.OrthographicCamera(-1.15, 1.15, 1.15, -1.15, 0.1, 10);
     medCamera.position.z = 5;
   } else {
-    // 모드 재선택 시 기존 세그먼트 정리
+    // On re-selecting a mode, dispose previous segments
     for (const s of medSegments) {
       s.mesh.geometry.dispose();
       s.mat.dispose();
@@ -443,14 +518,14 @@ function initMedHud(shape) {
   for (const s of medSegments) medScene.add(s.mesh);
 }
 
-/* 호흡 단계 계산 — 어떤 phases 배열이든 받아서 현재 상태 반환 (순수 함수).
-   elapsedMs + phases → { phaseIndex, phase, remaining(잔여초), progress(단계 내 0~1), done }
-   ※ 반복 없이 한 사이클만 진행 — 사이클 종료 후엔 done:true 로 '발사' 신호. */
+/* Compute the breath phase — pure function that accepts any phases array and returns current state.
+   elapsedMs + phases → { phaseIndex, phase, remaining(sec left), progress(0–1 within phase), done }
+   ※ Runs a single cycle (no repeat) — once complete, done:true signals "FIRE". */
 function computeBreathPhase(elapsedMs, phases) {
   const totalSec = phases.reduce((s, p) => s + p.dur, 0);
-  const tSec = elapsedMs / 1000;     // % 모듈로 제거: 한 번만 진행
+  const tSec = elapsedMs / 1000;     // no modulo: runs once
 
-  // 한 사이클 완료 → 발사 신호 상태
+  // One cycle complete → FIRE signal state
   if (tSec >= totalSec) {
     return { phaseIndex: phases.length, phase: null, remaining: 0, progress: 1, done: true };
   }
@@ -473,19 +548,19 @@ function computeBreathPhase(elapsedMs, phases) {
   return { phaseIndex: phases.length - 1, phase: last, remaining: 0, progress: 1, done: false };
 }
 
-/* 호흡 깊이(0=완전 비움, 1=완전 채움) — Math.sin/cos 으로 부드러운 곡선.
-   외부 코드(예: 활 떨림 감쇠 계수)에서 자유롭게 활용 가능. */
+/* Breath depth (0 = fully empty, 1 = fully full) — smooth curve via Math.sin/cos.
+   Free to use externally (e.g., as a bow-tremor damping coefficient). */
 function breathDepth(phaseType, progress) {
   switch (phaseType) {
-    case "inhale":    return Math.sin(progress * Math.PI / 2);  // 0 → 1 (사인)
-    case "exhale":    return Math.cos(progress * Math.PI / 2);  // 1 → 0 (코사인)
+    case "inhale":    return Math.sin(progress * Math.PI / 2);  // 0 → 1 (sine)
+    case "exhale":    return Math.cos(progress * Math.PI / 2);  // 1 → 0 (cosine)
     case "holdFull":  return 1;
     case "holdEmpty": return 0;
     default:          return 0;
   }
 }
 
-/* ─── WebAudio: 단계 전환 시 부드러운 종소리 (브라우저 네이티브 API) ─── */
+/* ─── WebAudio: soft chime on phase transition (browser-native API) ─── */
 let audioCtx = null;
 function ensureAudio() {
   if (!audioCtx) {
@@ -506,42 +581,42 @@ function chime(freq) {
   osc.start(t0); osc.stop(t0 + 0.7);
 }
 
-/* ─── 매 프레임 호출: HUD/링/타이머/비네팅 일괄 갱신 ───
-   호흡 HUD는 '조준(AIMING) + 시위 당김' 상태일 때만 표시.
-   화살 발사로 IDLE 로 돌아가면 자동으로 숨겨지고, 다시 당기면 새 호흡 사이클 시작. */
+/* ─── Per-frame: refresh HUD/ring/timer/vignette together ───
+   The breath HUD is shown only while AIMING + string is sufficiently drawn.
+   After firing returns to IDLE it auto-hides; drawing again starts a fresh cycle. */
 function updateBreathing(now) {
   if (!currentBreathMode) return;
 
-  // 표시 조건 — 주먹을 쥐어 조준 중이고, 시위가 어느 정도 당겨졌을 때
+  // Visibility condition — fist clenched (aiming) and string drawn past the threshold
   const shouldShow = (state === "AIMING") && (drawPowerSmooth >= MIN_DRAW_POWER);
   const medHudEl = document.getElementById("medHud");
 
   if (shouldShow && !breathHudShown) {
-    // 새로 표시 — 호흡 사이클을 들숨부터 다시 시작
+    // New display — restart the breath cycle from inhale
     breathHudShown = true;
     breathStartMs = now;
     lastPhaseIndex = -1;
     medHudEl.classList.add("show");
   } else if (!shouldShow && breathHudShown) {
-    // 발사 등으로 더 이상 당김 상태가 아니면 숨김
+    // Hide if no longer drawing (after firing, etc.)
     breathHudShown = false;
     medHudEl.classList.remove("show");
-    // 다음 사이클을 위해 '발사 신호' 강조 클래스 해제
+    // Clear the FIRE-signal emphasis class for the next cycle
     if (medTimerEl) medTimerEl.classList.remove("ready");
     if (medLabelEl) medLabelEl.classList.remove("ready");
   }
 
-  // 비네팅 타깃 — HUD가 숨겨지면 0으로 자연 페이드
+  // Vignette target — fades naturally to 0 when the HUD is hidden
   let vTarget = 0;
 
   if (breathHudShown) {
     const info = computeBreathPhase(now - breathStartMs, currentBreathMode.phases);
 
-    // 단계 전환 종소리 (phaseIndex 변화 시 1회)
+    // Phase-transition chime (once per phaseIndex change)
     if (info.phaseIndex !== lastPhaseIndex) {
       lastPhaseIndex = info.phaseIndex;
       if (info.done) {
-        chime(880);   // 발사 신호음 — 한 사이클 완료 알림
+        chime(880);   // FIRE signal chime — announces cycle completion
       } else {
         const f = { inhale: 660, exhale: 392, holdFull: 523, holdEmpty: 440 }[info.phase.type] || 440;
         chime(f);
@@ -549,21 +624,21 @@ function updateBreathing(now) {
     }
 
     if (info.done) {
-      // ─── 한 사이클 완료 → "발사!" 신호 ───
-      const READY = 0x39e6a0;   // 밝은 청록색
+      // ─── One cycle complete → "FIRE!" signal ───
+      const READY = 0xa52020;   // Accent
       for (const s of medSegments) s.mat.color.setHex(READY);
       if (medTimerEl) {
-        medTimerEl.textContent = "발사!";
+        medTimerEl.textContent = "FIRE";
         medTimerEl.classList.add("ready");
       }
       if (medLabelEl) {
-        medLabelEl.textContent = "쏘세요";
+        medLabelEl.textContent = "Release";
         medLabelEl.classList.add("ready");
       }
-      vTarget = 0;             // 비네팅 해제 — 시야 밝게 (조준 마무리)
+      vTarget = 0;             // release vignette — brighten view (aim finishing)
     } else {
-      // ─── 호흡 진행 중 ───
-      const FILL = 0xff3b9d, EMPTY = 0x2a2f44;
+      // ─── Breath in progress ───
+      const FILL = 0xa52020, EMPTY = 0xd6d6d6;
       for (const s of medSegments) s.mat.color.setHex(s.u <= info.progress ? FILL : EMPTY);
 
       if (medTimerEl) {
@@ -575,24 +650,24 @@ function updateBreathing(now) {
         medLabelEl.classList.remove("ready");
       }
 
-      // 비네팅 타깃 — '정지' 또는 '긴 날숨'(≥6초)에 외곽 어두워짐
+      // Vignette target — edges darken during holds or long exhales (≥6s)
       if (info.phase.type === "holdFull" || info.phase.type === "holdEmpty") vTarget = 0.55;
       if (info.phase.type === "exhale" && info.phase.dur >= 6) vTarget = 0.7;
     }
 
-    // 미니 씬 렌더
+    // Render the mini scene
     if (medRenderer) medRenderer.render(medScene, medCamera);
   }
 
-  // 비네팅 강도 부드러운 보간 (표시 ON/OFF 전환 시 자연스러운 페이드)
+  // Smooth interpolation for vignette intensity (natural fade on show/hide)
   vignetteAmount += (vTarget - vignetteAmount) * 0.04;
   if (vignetteUniform) vignetteUniform.value = vignetteAmount;
 }
 
 /* =========================================================================
-   포스트 프로세싱: 비네팅 (호흡 정지·긴 날숨 구간에서 외곽 어둡게)
-   ─ 카메라 흔들림은 사용하지 않음. 카메라 고정 + 화면 외곽 점진 어둡게.
-   ─ 메인 씬 → WebGLRenderTarget → 풀스크린 quad(vignette shader) → 화면
+   Post-processing: vignette (darken edges during breath holds & long exhales)
+   ─ No camera shake. Camera stays fixed; only the screen edges gradually darken.
+   ─ Main scene → WebGLRenderTarget → fullscreen quad (vignette shader) → screen
    ========================================================================= */
 let renderTarget, postScene, postCamera, postMat, vignetteUniform;
 
@@ -600,7 +675,7 @@ function initPostProcessing() {
   const w = window.innerWidth, h = window.innerHeight;
   renderTarget = new THREE.WebGLRenderTarget(w, h, {
     minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
-    format: THREE.RGBAFormat, samples: 4,        // 멀티샘플 AA
+    format: THREE.RGBAFormat, samples: 4,        // multisample AA
   });
   postScene = new THREE.Scene();
   postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -629,48 +704,48 @@ function initPostProcessing() {
 }
 
 /* =========================================================================
-   전역 상태
+   Global state
    ========================================================================= */
 let scene, camera, renderer;
 let bowGroup, bowString, nockedArrow, bowHandMarker, drawHandMarker, targetGroup;
-const arrows = [];                       // 날아가는 화살 목록
+const arrows = [];                       // in-flight arrows
 
-let score = 0, hitCount = 0, shotCount = 0;          // 과녁 점수 / 명중 / 발사
+let score = 0, hitCount = 0, shotCount = 0;          // target score / hits / shots
 let targetPulse = 0, lastHitScore = 0, lastHitTime = -99999;
 
 let state = "IDLE";                      // IDLE | AIMING
-let prevFinger = { thumb: true, index: true, middle: true }; // 직전 프레임 접힘 상태
+let prevFinger = { thumb: true, index: true, middle: true }; // previous-frame fold state
 let lastFireTime = -99999;
 let currentCooldown = 0;
 let lastFireMode = null;                 // 'sut' | 'am'
-let aimStartMs = 0;                      // 조준(AIMING) 진입 시각 (즉시발사 방지)
+let aimStartMs = 0;                      // time AIMING entered (prevents instant fire)
 
-// 손가락 fold 판정 히스테리시스 — MediaPipe 떨림으로 인한 false positive 차단
-// (한 번 'folded' 판정이 나면 ratio > 상한을 넘어야 'extended'로 바뀌고, 그 반대도 동일)
+// Finger-fold hysteresis — blocks false positives from MediaPipe jitter
+// (once 'folded' is set, ratio must exceed the upper bound to become 'extended', and vice versa)
 let stableThumb = true, stableIndex = true, stableMiddle = true;
 
-// 호흡 HUD 표시 여부 — 조준+당김 상태일 때만 표시
+// Whether the breath HUD is shown — only while aiming + drawing
 let breathHudShown = false;
 
-// 오발 방지 안전장치 (튜닝 포인트)
-const MIN_AIM_MS = 250;                  // AIMING 진입 후 최소 유지시간 (ms)
-const MIN_DRAW_POWER = 0.18;             // 발사 허용 최소 당김 세기 (0~1)
+// Misfire-prevention safeguards (tuning points)
+const MIN_AIM_MS = 250;                  // min hold duration after entering AIMING (ms)
+const MIN_DRAW_POWER = 0.18;             // min draw power required to allow firing (0–1)
 
-let drawPower = 0;                       // 0~1 정규화된 당김 세기
+let drawPower = 0;                       // 0–1 normalized draw power
 let drawPowerSmooth = 0;
 let rawDrawDist = 0;
 let curFinger = { thumb: true, index: true, middle: true };
 
-// MediaPipe 결과로부터 매 프레임 갱신되는 월드 좌표
-let latestBowCenter = null;              // 왼손(활손) 중심 → 월드
-let latestDrawPoint = null;              // 오른손 Landmark2(엄지 기저) → 월드
+// World coordinates updated every frame from MediaPipe results
+let latestBowCenter = null;              // left-hand (bow hand) center → world
+let latestDrawPoint = null;              // right-hand Landmark 2 (thumb base) → world
 let handsPresent = { bow: false, draw: false };
 
 const smoothedNock = new THREE.Vector3(0, 5, 3.4);
 const clock = new THREE.Clock();
 
 /* =========================================================================
-   Three.js 초기화
+   Three.js initialization
    ========================================================================= */
 function initThree() {
   const canvas = document.getElementById("three");
@@ -679,83 +754,83 @@ function initThree() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e16);
-  scene.fog = new THREE.Fog(0x0a0e16, 70, 320);
+  scene.background = new THREE.Color(0xf8f8f8);
+  scene.fog = new THREE.Fog(0xf8f8f8, 70, 320);
 
   camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
   camera.position.set(0, 8, 18);
   camera.lookAt(0, 4, -28);
 
-  // 조명
-  scene.add(new THREE.HemisphereLight(0x9fc2ff, 0x1a1410, 0.9));
-  const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+  // Lighting
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d0d0, 0.95));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.7);
   dir.position.set(-8, 16, 10);
   scene.add(dir);
 
-  // 바닥 + 그리드 (궤적 거리 가늠용)
+  // Ground + grid (for gauging trajectory distance)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(260, 420),
-    new THREE.MeshStandardMaterial({ color: 0x121a2a, roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -0.05, -110);
   scene.add(ground);
 
-  const grid = new THREE.GridHelper(260, 52, 0x3a5278, 0x1f2c44);
+  const grid = new THREE.GridHelper(260, 52, 0x191919, 0xcccccc);
   grid.position.set(0, 0.02, -110);
   scene.add(grid);
 
-  // 거리 마커 (10/20/30... 단위 느낌)
+  // Distance markers (10/20/30… style spacing)
   [-25, -55, -90, -130, -175].forEach((z, i) => {
     const m = new THREE.Mesh(
       new THREE.BoxGeometry(70, 0.12, 0.6),
-      new THREE.MeshBasicMaterial({ color: i % 2 ? 0x2e7d32 : 0x445b82 })
+      new THREE.MeshBasicMaterial({ color: i % 2 ? 0xa52020 : 0x191919 })
     );
     m.position.set(0, 0.06, z);
     scene.add(m);
   });
 
-  // 멀리 떨어진 과녁
+  // Distant target
   buildTarget();
 
-  // 활 (간단한 'C'자 토러스 + 그립)
+  // Bow (simple 'C'-shaped torus + grip)
   bowGroup = new THREE.Group();
   const limb = new THREE.Mesh(
     new THREE.TorusGeometry(2.6, 0.16, 10, 40, Math.PI * 1.15),
-    new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.6 })
+    new THREE.MeshStandardMaterial({ color: 0x191919, roughness: 0.6 })
   );
   limb.rotation.z = Math.PI / 2 - (Math.PI * 1.15) / 2;
   bowGroup.add(limb);
   const grip = new THREE.Mesh(
     new THREE.CylinderGeometry(0.22, 0.22, 1.1, 10),
-    new THREE.MeshStandardMaterial({ color: 0x5c3a1c })
+    new THREE.MeshStandardMaterial({ color: 0x191919 })
   );
   bowGroup.add(grip);
   bowGroup.position.set(0, 5, 3);
   scene.add(bowGroup);
 
-  // 활시위 (3점 라인: 상단 고자 - 시위 당김점 - 하단 고자)
+  // Bowstring (3-point line: top nock — draw point — bottom nock)
   bowString = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 7, 3), new THREE.Vector3(0, 5, 3), new THREE.Vector3(0, 3, 3),
     ]),
-    new THREE.LineBasicMaterial({ color: 0xdfe8ff })
+    new THREE.LineBasicMaterial({ color: 0x191919 })
   );
   scene.add(bowString);
 
-  // 시위에 걸린 화살 (조준 중 표시)
-  nockedArrow = makeArrow(0xffe08a);
+  // Nocked arrow (visible while aiming)
+  nockedArrow = makeArrow(0xa52020);
   nockedArrow.visible = false;
   scene.add(nockedArrow);
 
-  // 손 위치 마커
+  // Hand position markers
   bowHandMarker = new THREE.Mesh(
     new THREE.SphereGeometry(0.32, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0x34d058, emissive: 0x0d3, emissiveIntensity: 0.4 })
+    new THREE.MeshStandardMaterial({ color: 0x191919 })
   );
   drawHandMarker = new THREE.Mesh(
     new THREE.SphereGeometry(0.32, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0xf5c518, emissive: 0x553, emissiveIntensity: 0.4 })
+    new THREE.MeshStandardMaterial({ color: 0xa52020 })
   );
   bowHandMarker.visible = drawHandMarker.visible = false;
   scene.add(bowHandMarker, drawHandMarker);
@@ -770,19 +845,19 @@ function onResize() {
   if (renderTarget) renderTarget.setSize(window.innerWidth, window.innerHeight);
 }
 
-/* 화살 메쉬 (로컬 -Z 방향을 향함 → lookAt 으로 진행방향 정렬) */
+/* Arrow mesh (local -Z points forward → aligned via lookAt to travel direction) */
 function makeArrow(color) {
   const g = new THREE.Group();
   const shaft = new THREE.Mesh(
     new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8),
-    new THREE.MeshStandardMaterial({ color: 0xc9a06a })
+    new THREE.MeshStandardMaterial({ color: 0x191919 })
   );
-  shaft.rotation.x = Math.PI / 2;                 // Y축 → Z축 정렬
+  shaft.rotation.x = Math.PI / 2;                 // align Y axis → Z axis
   const head = new THREE.Mesh(
     new THREE.ConeGeometry(0.16, 0.5, 10),
-    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 })
+    new THREE.MeshStandardMaterial({ color })
   );
-  head.rotation.x = -Math.PI / 2;                 // 촉이 -Z 를 향함
+  head.rotation.x = -Math.PI / 2;                 // tip faces -Z
   head.position.z = -1.35;
   const fletch = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 0.02, 0.42),
@@ -793,28 +868,28 @@ function makeArrow(color) {
   return g;
 }
 
-/* 멀리 떨어진 과녁 (전통 표적 동심원 + 받침 기둥) */
+/* Distant target (traditional concentric rings + support post) */
 function buildTarget() {
   targetGroup = new THREE.Group();
 
-  // 동심원 표적 면 (바깥 → 안: 흰·검·파·빨·금)
+  // Concentric ring faces (outer → inner: grayscale + accent center)
   const rings = [
-    [4.0, 0xf2f2ee], [3.2, 0x33373a], [2.4, 0x3aa0d8],
-    [1.6, 0xe23b3b], [0.8, 0xf3c41a],
+    [4.0, 0xf8f8f8], [3.2, 0x191919], [2.4, 0xbcbcbc],
+    [1.6, 0x191919], [0.8, 0xa52020],
   ];
   rings.forEach(([r, c], i) => {
     const disc = new THREE.Mesh(
       new THREE.CircleGeometry(r, 48),
       new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, side: THREE.DoubleSide })
     );
-    disc.position.z = i * 0.02;        // z-fighting 방지
+    disc.position.z = i * 0.02;        // prevent z-fighting
     targetGroup.add(disc);
   });
 
-  // 받침 기둥
+  // Support post
   const post = new THREE.Mesh(
     new THREE.CylinderGeometry(0.18, 0.24, 7, 10),
-    new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: 0x191919, roughness: 1 })
   );
   post.position.set(0, -3.5, -0.3);
   targetGroup.add(post);
@@ -823,7 +898,7 @@ function buildTarget() {
   scene.add(targetGroup);
 }
 
-/* 화살이 떨어진 거리 → 점수 (안쪽 링부터 검사) */
+/* Arrow drop distance → score (check from innermost ring outward) */
 function scoreForDistance(d) {
   for (const [r, pts] of TARGET.rings) {
     if (d <= r) return pts;
@@ -832,13 +907,13 @@ function scoreForDistance(d) {
 }
 
 /* =========================================================================
-   좌표 변환: MediaPipe 정규화 좌표 → Three.js 월드 좌표
-   (3D 캔버스는 CSS scaleX(-1) 로 거울 반전되므로 landmark.x 를 그대로 사용)
+   Coordinate mapping: MediaPipe normalized coords → Three.js world coords
+   (3D canvas is mirrored via CSS scaleX(-1), so landmark.x is used as-is)
    ========================================================================= */
 function landmarkToWorld(lm) {
-  const wx = (lm.x - 0.5) * 14;            // 좌우 펼침
-  const wy = (0.5 - lm.y) * 9 + 4;         // 위로 들어올림 (landmark y 는 아래로 증가)
-  const wz = 3 + (lm.z || 0) * 6;          // 깊이
+  const wx = (lm.x - 0.5) * 14;            // horizontal spread
+  const wy = (0.5 - lm.y) * 9 + 4;         // lift upward (landmark y increases downward)
+  const wz = 3 + (lm.z || 0) * 6;          // depth
   return new THREE.Vector3(wx, wy, wz);
 }
 
@@ -854,32 +929,32 @@ function handCenter(lms) {
 }
 
 /* =========================================================================
-   손가락 구부림(Folded) / 폄(Extended) 판별
-   관절의 상대적 위치를 비교하는 직관적인 True/False 판별법.
-   - 검지/중지: Tip(8,12)이 자신의 MCP(5,9)보다 손목(0) 쪽으로 말려들어오면 접힘
-   - 엄지: Tip(4)이 MCP(2)보다 새끼손가락 기저(17) 쪽(안쪽)으로 붙으면 접힘
+   Finger Folded / Extended classification
+   Simple True/False test based on relative joint positions.
+   - Index/Middle: if the Tip (8, 12) is closer to the wrist (0) than its own MCP (5, 9), it is folded
+   - Thumb: if the Tip (4) sits closer (inward) to the pinky base (17) than the MCP (2), it is folded
    ========================================================================= */
 function computeFingerStates(lms) {
   const w = lms[0];
   const d = (a, b) => dist3D(a, b);
 
-  // 각 손가락의 fold ratio (1 미만 = 접힘 쪽, 1 초과 = 폄 쪽)
-  // 히스테리시스 데드밴드를 두어, 임계값 근처에서의 떨림이 상태를 뒤집지 않도록 함.
-  // → 암깍지 오인식(엄지 떨림으로 인한 false 발사)의 주요 원인을 차단.
+  // Per-finger fold ratio (< 1 = folded side, > 1 = extended side).
+  // A hysteresis deadband prevents jitter near the threshold from flipping the state.
+  // → blocks the main cause of AM misfires (false fire from thumb jitter).
 
-  // 검지: tip(8) → 손목 / MCP(5) → 손목 비율
+  // Index: tip(8)→wrist / MCP(5)→wrist ratio
   const rIdx = d(lms[8],  w) / Math.max(0.001, d(lms[5], w));
-  if (rIdx < 0.90)      stableIndex = true;     // 확실히 접힘
-  else if (rIdx > 1.10) stableIndex = false;    // 확실히 폄
-  // (사이값은 이전 상태 유지)
+  if (rIdx < 0.90)      stableIndex = true;     // clearly folded
+  else if (rIdx > 1.10) stableIndex = false;    // clearly extended
+  // (in-between values keep the previous state)
 
-  // 중지: tip(12) → 손목 / MCP(9) → 손목 비율
+  // Middle: tip(12)→wrist / MCP(9)→wrist ratio
   const rMid = d(lms[12], w) / Math.max(0.001, d(lms[9], w));
   if (rMid < 0.90)      stableMiddle = true;
   else if (rMid > 1.10) stableMiddle = false;
 
-  // 엄지: tip(4) → 새끼MCP(17) / MCP(2) → 새끼MCP(17) 비율
-  // 데드밴드를 더 넓게(0.92 ~ 1.14) — 엄지 떨림이 가장 심함
+  // Thumb: tip(4)→pinky-MCP(17) / MCP(2)→pinky-MCP(17) ratio
+  // Wider deadband (0.92–1.14) — thumb jitter is the worst
   const rThm = d(lms[4], lms[17]) / Math.max(0.001, d(lms[2], lms[17]));
   if (rThm < 0.92)      stableThumb = true;
   else if (rThm > 1.14) stableThumb = false;
@@ -888,38 +963,38 @@ function computeFingerStates(lms) {
 }
 
 /* =========================================================================
-   제스처 상태 머신 + 발사 분기
+   Gesture state machine + fire branching
    ========================================================================= */
 function updateStateMachine(f, now) {
   const cooldownLeft = Math.max(0, lastFireTime + currentCooldown - now);
   const onCooldown = cooldownLeft > 0;
 
-  // 안전장치 — 모두 충족해야 실제 발사를 허용 (남발 차단)
-  const enoughDraw = drawPowerSmooth >= MIN_DRAW_POWER;   // 시위가 충분히 당겨졌나
-  const heldLong   = (now - aimStartMs) >= MIN_AIM_MS;    // 조준을 일정 시간 유지했나
+  // Safeguards — all must hold to permit a real fire (prevents spam)
+  const enoughDraw = drawPowerSmooth >= MIN_DRAW_POWER;   // string drawn enough?
+  const heldLong   = (now - aimStartMs) >= MIN_AIM_MS;    // aim held long enough?
   const canFire    = !onCooldown && enoughDraw && heldLong;
 
-  const isFist      = f.thumb && f.index && f.middle;             // 주먹 꽉 쥠
-  const allExtended = !f.thumb && !f.index && !f.middle;          // 손 확 펴짐
+  const isFist      = f.thumb && f.index && f.middle;             // tight fist
+  const allExtended = !f.thumb && !f.index && !f.middle;          // hand fully opened
   const prevAllExt  = !prevFinger.thumb && !prevFinger.index && !prevFinger.middle;
-  const thumbRising = !f.thumb && prevFinger.thumb;               // 엄지: 접힘→폄 (튕김)
-  const allExtRising = allExtended && !prevAllExt;                // 세 손가락 동시 폄 순간
+  const thumbRising = !f.thumb && prevFinger.thumb;               // thumb: folded → extended (flick)
+  const allExtRising = allExtended && !prevAllExt;                // moment all three fingers extend together
 
   if (state === "IDLE") {
     if (isFist) {
       state = "AIMING";
-      aimStartMs = now;                          // 조준 시작 시각 기록
+      aimStartMs = now;                          // record aim-start time
     }
   }
 
   if (state === "AIMING") {
-    // ① 숫깍지 풀그립: [엄지+검지+중지가 '동시에' 모두 펴지는 순간]
+    // ① SUT full-grip release: [the instant thumb + index + middle all extend simultaneously]
     if (allExtRising) {
       if (canFire) fireArrow("sut", now);
       state = "IDLE";
     }
-    // ② 암깍지: [검지·중지는 구부린 채, '엄지만' 위로 튕기듯 펴지는 순간]
-    //   - 히스테리시스 + 최소 당김 + 최소 조준유지로 떨림 발사 차단
+    // ② AM thumb-flick release: [index/middle still folded, only the thumb flicks up]
+    //   - hysteresis + min draw + min aim-hold block jitter-fires
     else if (thumbRising && f.index && f.middle) {
       if (canFire) fireArrow("am", now);
       state = "IDLE";
@@ -928,13 +1003,13 @@ function updateStateMachine(f, now) {
 }
 
 /* =========================================================================
-   화살 발사 — 깍지 모드별 속도 벡터 차별화
+   Fire arrow — velocity vector differs per release mode
    ========================================================================= */
 function fireArrow(mode, now) {
-  const p = drawPowerSmooth;                       // 당김 세기 0~1
+  const p = drawPowerSmooth;                       // draw power 0–1
   const spawn = latestBowCenter ? latestBowCenter.clone() : new THREE.Vector3(0, 5, 3);
 
-  // 약간의 좌우 조준 (양손 x 차이 반영)
+  // Slight lateral aim (reflects x-offset between the two hands)
   let velX = 0;
   if (latestBowCenter && latestDrawPoint) {
     velX = THREE.MathUtils.clamp((latestBowCenter.x - latestDrawPoint.x) * 0.04, -0.25, 0.25);
@@ -942,23 +1017,23 @@ function fireArrow(mode, now) {
 
   let velY, velZ, color;
   if (mode === "sut") {
-    // 숫깍지: 전진 속도가 매우 강하고, 상승이 작아 평평하고 길게 뻗는 묵직한 직선형
+    // SUT: very strong forward speed, low rise — flat, far-reaching, heavy linear shot
     velZ = -(CONFIG.SUT_SPEED + p * CONFIG.SUT_SPEED_GAIN);
     velY =  CONFIG.SUT_VY + p * CONFIG.SUT_VY_GAIN;
-    color = 0xff3b30;
+    color = 0xa52020;
     currentCooldown = CONFIG.SUT_COOLDOWN;
   } else {
-    // 암깍지: 전진 속도는 절반 수준, 대신 위로 크게 솟구쳐 낙차가 큰 곡선형 호(Arc)
+    // AM: about half the forward speed, but soars high — large drop, arc-shaped trajectory
     velZ = -(CONFIG.AM_SPEED + p * CONFIG.AM_SPEED_GAIN);
     velY =  CONFIG.AM_VY + p * CONFIG.AM_VY_GAIN;
-    color = 0x3b82f6;
+    color = 0x191919;
     currentCooldown = CONFIG.AM_COOLDOWN;
   }
 
   const group = makeArrow(color);
   group.position.copy(spawn);
 
-  // 잔상 선(Trail): 숫깍지=반투명 붉은색 / 암깍지=반투명 푸른색
+  // Trail line: SUT = translucent accent / AM = translucent text-color
   const trailMesh = new THREE.Mesh(
     new THREE.BufferGeometry(),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false })
@@ -968,7 +1043,7 @@ function fireArrow(mode, now) {
   arrows.push({ group, trailMesh, vel: { x: velX, y: velY, z: velZ }, mode, trailPoints: [], scored: false });
   shotCount++;
 
-  // 동시 화살 개수 제한 (오래된 것부터 제거)
+  // Cap concurrent arrows (remove the oldest first)
   while (arrows.length > CONFIG.MAX_ARROWS) killArrow(arrows[0]);
 
   lastFireTime = now;
@@ -986,8 +1061,8 @@ function killArrow(a) {
 }
 
 /* =========================================================================
-   매 프레임 물리 업데이트 (포물선 운동)
-   요구사항 공식:  y = y + velocityY - (0.5 * g)
+   Per-frame physics update (projectile motion)
+   Required formula: y = y + velocityY - (0.5 * g)
    ========================================================================= */
 function updateArrows(now) {
   const g = CONFIG.GRAVITY;
@@ -997,13 +1072,13 @@ function updateArrows(now) {
     const pos = a.group.position;
     const prevZ = pos.z;
 
-    // 중력 + 모드별 속도 벡터를 적용한 포물선 운동
+    // Projectile motion combining gravity + mode-specific velocity vector
     pos.x += a.vel.x;
     pos.z += a.vel.z;
     pos.y += a.vel.y - 0.5 * g;     // ← y = y + velocityY - (0.5 * g)
-    a.vel.y -= g;                   // 다음 프레임을 위한 수직 속도 감소(중력)
+    a.vel.y -= g;                   // decrease vertical velocity (gravity) for next frame
 
-    // 과녁 평면 통과 판정 → 점수 계산
+    // Target-plane crossing test → score calculation
     if (!a.scored && prevZ > tz && pos.z <= tz) {
       const pts = scoreForDistance(Math.hypot(pos.x - tx, pos.y - ty));
       if (pts > 0) {
@@ -1014,10 +1089,10 @@ function updateArrows(now) {
       a.scored = true;
     }
 
-    // 진행 방향으로 화살 정렬 (화살 로컬 -Z 가 진행방향을 향함)
+    // Align arrow to its travel direction (arrow local -Z points forward)
     a.group.lookAt(pos.x + a.vel.x, pos.y + a.vel.y, pos.z + a.vel.z);
 
-    // 잔상 선(Trail) 갱신
+    // Update the trail line
     a.trailPoints.push(pos.clone());
     if (a.trailPoints.length > CONFIG.MAX_TRAIL) a.trailPoints.shift();
     if (a.trailPoints.length >= 2) {
@@ -1029,12 +1104,12 @@ function updateArrows(now) {
       a.trailMesh.geometry = newGeo;
     }
 
-    // 화면 밖으로 나가면 제거
+    // Remove if it leaves the visible area
     if (pos.y < -4 || pos.z < -210 || Math.abs(pos.x) > 130) killArrow(a);
   }
 }
 
-/* 이동 과녁: 좌우로 크게·상하로 살짝 움직이고, 명중 시 펄스 */
+/* Moving target: wide horizontal sway, slight vertical drift; pulses on hit */
 function updateTarget(now) {
   targetGroup.position.x = TARGET.baseX + Math.sin(now * TARGET.moveSpeed) * TARGET.moveAmpX;
   targetGroup.position.y = TARGET.y + Math.sin(now * TARGET.moveSpeed * 1.7) * TARGET.moveAmpY;
@@ -1043,10 +1118,10 @@ function updateTarget(now) {
 }
 
 /* =========================================================================
-   활 / 시위 / 조준 화살 시각 갱신
+   Visual refresh: bow / string / nocked arrow
    ========================================================================= */
 function updateBowVisual() {
-  // 활은 왼손(활손)을 부드럽게 따라감
+  // Bow smoothly follows the left (bow) hand
   if (latestBowCenter) {
     bowGroup.position.lerp(latestBowCenter, 0.4);
     bowHandMarker.position.copy(latestBowCenter);
@@ -1058,11 +1133,11 @@ function updateBowVisual() {
   drawHandMarker.visible = !!latestDrawPoint;
   if (latestDrawPoint) drawHandMarker.position.copy(latestDrawPoint);
 
-  // 시위 당김점: 조준 중이면 오른손 위치로, 아니면 활 중심으로
+  // String draw point: right-hand position while aiming, otherwise the bow center
   let nock;
   if (state === "AIMING" && latestDrawPoint) {
     nock = latestDrawPoint.clone();
-    // 양손 거리(당김 세기)에 비례해 시위를 뒤로 더 팽팽하게
+    // Pull the string further back in proportion to draw strength (hand-to-hand distance)
     nock.z = bowGroup.position.z + 0.6 + drawPowerSmooth * 4.2;
   } else {
     nock = bowGroup.position.clone();
@@ -1074,7 +1149,7 @@ function updateBowVisual() {
   const bot = bowGroup.position.clone().add(new THREE.Vector3(0, -2.4, 0));
   bowString.geometry.setFromPoints([top, smoothedNock, bot]);
 
-  // 조준 중에는 시위에 걸린 화살 표시
+  // Show the nocked arrow while aiming
   nockedArrow.visible = state === "AIMING";
   if (nockedArrow.visible) {
     nockedArrow.position.copy(smoothedNock);
@@ -1083,7 +1158,7 @@ function updateBowVisual() {
 }
 
 /* =========================================================================
-   MediaPipe Hands 결과 처리
+   MediaPipe Hands result handling
    ========================================================================= */
 const webcamCanvas = document.getElementById("webcam");
 const webcamCtx = webcamCanvas.getContext("2d");
@@ -1091,15 +1166,15 @@ const webcamCtx = webcamCanvas.getContext("2d");
 function onResults(results) {
   const W = webcamCanvas.width, H = webcamCanvas.height;
 
-  // --- 웹캠 디버그 캔버스: 거울처럼 좌우 반전하여 그리기 ---
+  // --- Webcam debug canvas: draw mirrored (flipped horizontally) ---
   webcamCtx.save();
   webcamCtx.clearRect(0, 0, W, H);
   webcamCtx.translate(W, 0);
   webcamCtx.scale(-1, 1);
   if (results.image) webcamCtx.drawImage(results.image, 0, 0, W, H);
 
-  // --- 검출된 손들을 평균 x 좌표로 좌/우 구분 ---
-  // (반전 안 된 원본 영상 기준: 사용자의 오른손 = 화면 왼쪽 = 작은 x)
+  // --- Classify detected hands as left/right by their mean x coordinate ---
+  // (in the un-mirrored source image: user's right hand = screen left = smaller x)
   let hands = [];
   if (results.multiHandLandmarks) {
     for (const lms of results.multiHandLandmarks) {
@@ -1110,32 +1185,32 @@ function onResults(results) {
 
   let drawHand = null, bowHand = null;
   if (hands.length >= 2) {
-    drawHand = hands[0];          // 작은 x → 사용자의 오른손(시위 당기는 손)
-    bowHand  = hands[hands.length - 1]; // 큰 x → 사용자의 왼손(활손)
+    drawHand = hands[0];          // smaller x → user's right hand (draws the string)
+    bowHand  = hands[hands.length - 1]; // larger x → user's left hand (holds the bow)
   } else if (hands.length === 1) {
     if (hands[0].avgX < 0.5) drawHand = hands[0];
     else bowHand = hands[0];
   }
 
-  // --- 21개 관절 뼈대 오버레이 ---
+  // --- Overlay the 21-joint hand skeleton ---
   if (bowHand) {
-    drawConnectors(webcamCtx, bowHand.lms, HAND_CONNECTIONS, { color: "#34d058", lineWidth: 3 });
-    drawLandmarks(webcamCtx, bowHand.lms, { color: "#aef2b8", lineWidth: 1, radius: 3 });
+    drawConnectors(webcamCtx, bowHand.lms, HAND_CONNECTIONS, { color: "#F8F8F8", lineWidth: 2 });
+    drawLandmarks(webcamCtx, bowHand.lms, { color: "#F8F8F8", lineWidth: 1, radius: 2 });
   }
   if (drawHand) {
-    drawConnectors(webcamCtx, drawHand.lms, HAND_CONNECTIONS, { color: "#f5c518", lineWidth: 3 });
-    drawLandmarks(webcamCtx, drawHand.lms, { color: "#fff0b0", lineWidth: 1, radius: 3 });
+    drawConnectors(webcamCtx, drawHand.lms, HAND_CONNECTIONS, { color: "#A52020", lineWidth: 2 });
+    drawLandmarks(webcamCtx, drawHand.lms, { color: "#A52020", lineWidth: 1, radius: 2 });
   }
   webcamCtx.restore();
 
-  // --- 손 데이터 → 월드 좌표 / 당김 거리 / 손가락 상태 ---
+  // --- Hand data → world coords / draw distance / finger states ---
   handsPresent.bow = !!bowHand;
   handsPresent.draw = !!drawHand;
 
   latestBowCenter = bowHand ? landmarkToWorld(handCenter(bowHand.lms)) : null;
-  latestDrawPoint = drawHand ? landmarkToWorld(drawHand.lms[2]) : null; // Landmark 2 = 엄지 기저
+  latestDrawPoint = drawHand ? landmarkToWorld(drawHand.lms[2]) : null; // Landmark 2 = thumb base
 
-  // 당김 거리: 왼손 중심점 ↔ 오른손 엄지 기저 관절(2번)의 3D 거리
+  // Draw distance: 3D distance between left-hand center ↔ right-hand thumb-base joint (#2)
   if (bowHand && drawHand) {
     rawDrawDist = dist3D(handCenter(bowHand.lms), drawHand.lms[2]);
   } else {
@@ -1151,13 +1226,13 @@ function onResults(results) {
     updateStateMachine(curFinger, now);
     prevFinger = curFinger;
   } else {
-    // 오른손을 잃으면 조준 해제
+    // If the right hand is lost, drop out of aiming
     state = "IDLE";
   }
 }
 
 /* =========================================================================
-   HUD 갱신
+   HUD refresh
    ========================================================================= */
 const el = {
   drawBar: document.getElementById("drawBar"),
@@ -1177,24 +1252,24 @@ const el = {
 };
 
 function updateHUD(now) {
-  // 당김 거리 바
+  // Draw-distance bar
   el.drawBar.style.width = (drawPowerSmooth * 100).toFixed(0) + "%";
   el.drawVal.textContent = (drawPowerSmooth * 100).toFixed(0) + "%";
 
-  // 제스처 상태
+  // Gesture state
   let label, cls;
   if (now - lastFireTime < 500 && lastFireMode) {
-    label = lastFireMode === "sut" ? "숫깍지 발사!" : "암깍지 발사!";
+    label = lastFireMode === "sut" ? "SUT FIRE" : "AM FIRE";
     cls = lastFireMode;
   } else if (state === "AIMING") {
-    label = "조준 / 당김 중"; cls = "aim";
+    label = "Aiming / Drawing"; cls = "aim";
   } else {
-    label = handsPresent.draw ? "대기" : "대기 (오른손 없음)"; cls = "idle";
+    label = handsPresent.draw ? "Idle" : "Idle (no right hand)"; cls = "idle";
   }
   el.gesture.textContent = label;
   el.gesture.className = "state " + cls;
 
-  // 재장전 쿨타임 바
+  // Reload cooldown bar
   const cdLeft = Math.max(0, lastFireTime + currentCooldown - now);
   if (cdLeft > 0 && currentCooldown > 0) {
     el.cdBar.style.width = ((cdLeft / currentCooldown) * 100).toFixed(0) + "%";
@@ -1204,20 +1279,20 @@ function updateHUD(now) {
     el.cdVal.textContent = "READY";
   }
 
-  // 손가락 판별 칩
-  setChip(el.chipThumb,  "엄지", curFinger.thumb);
-  setChip(el.chipIndex,  "검지", curFinger.index);
-  setChip(el.chipMiddle, "중지", curFinger.middle);
+  // Finger-state chips
+  setChip(el.chipThumb,  "Thumb",  curFinger.thumb);
+  setChip(el.chipIndex,  "Index",  curFinger.index);
+  setChip(el.chipMiddle, "Middle", curFinger.middle);
 
-  el.chipMode.textContent = "최근: " + (lastFireMode === "sut" ? "숫깍지" : lastFireMode === "am" ? "암깍지" : "-");
+  el.chipMode.textContent = "Last: " + (lastFireMode === "sut" ? "SUT" : lastFireMode === "am" ? "AM" : "-");
   el.chipMode.className = "chip" + (lastFireMode ? " mode-" + lastFireMode : "");
-  el.chipArrows.textContent = "화살: " + arrows.length;
+  el.chipArrows.textContent = "Arrows: " + arrows.length;
 
-  // 과녁 점수
+  // Target score
   el.scoreVal.textContent = score;
-  el.hitInfo.textContent = "명중 " + hitCount + " / 발사 " + shotCount;
+  el.hitInfo.textContent = "Hits " + hitCount + " / Shots " + shotCount;
 
-  // 명중 '+점수' 플래시
+  // Hit '+score' flash
   const fa = now - lastHitTime;
   if (fa < 800) {
     const t = fa / 800;
@@ -1230,27 +1305,27 @@ function updateHUD(now) {
 }
 
 function setChip(node, name, folded) {
-  node.textContent = name + (folded ? " ●접힘" : " ○폄");
+  node.textContent = name + (folded ? " ● fold" : " ○ open");
   node.className = "chip" + (folded ? " folded" : "");
 }
 
 /* =========================================================================
-   메인 렌더 루프
+   Main render loop
    ========================================================================= */
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now();
 
-  // 당김 세기 스무딩
+  // Smooth draw-power
   drawPowerSmooth += (drawPower - drawPowerSmooth) * 0.3;
 
   updateArrows(now);
   updateTarget(now);
   updateBowVisual();
   updateHUD(now);
-  updateBreathing(now);   // ← 호흡 HUD + 비네팅 강도 갱신 (단 한 줄로 통합)
+  updateBreathing(now);   // ← refresh breath HUD + vignette intensity (single integrated call)
 
-  // 메인 씬 → 렌더 타겟 → 비네팅 셰이더 quad → 화면 (Post-processing)
+  // Main scene → render target → vignette shader quad → screen (post-processing)
   if (renderTarget) {
     renderer.setRenderTarget(renderTarget);
     renderer.render(scene, camera);
@@ -1262,7 +1337,7 @@ function animate() {
 }
 
 /* =========================================================================
-   MediaPipe + 웹캠 초기화
+   MediaPipe + webcam initialization
    ========================================================================= */
 let hands, mpCamera;
 const videoEl = document.querySelector(".input_video");
@@ -1272,11 +1347,11 @@ function initMediaPipe() {
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
   });
   hands.setOptions({
-    maxNumHands: 2,                // 멀티 핸드(양손)
+    maxNumHands: 2,                // multi-hand (both hands)
     modelComplexity: 1,
     minDetectionConfidence: 0.6,
     minTrackingConfidence: 0.6,
-    selfieMode: false,             // 반전은 직접 처리
+    selfieMode: false,             // we handle mirroring ourselves
   });
   hands.onResults(onResults);
 }
@@ -1285,14 +1360,14 @@ async function startCamera() {
   const errBox = document.getElementById("errorBox");
   errBox.textContent = "";
 
-  if (typeof THREE === "undefined") { errBox.textContent = "Three.js CDN 로드 실패."; return; }
+  if (typeof THREE === "undefined") { errBox.textContent = "Failed to load Three.js CDN."; return; }
   if (typeof Hands === "undefined" || typeof Camera === "undefined") {
-    errBox.textContent = "MediaPipe CDN 로드 실패. 인터넷 연결을 확인하세요.";
+    errBox.textContent = "Failed to load MediaPipe CDN. Check your internet connection.";
     return;
   }
 
   try {
-    el.status.textContent = "MediaPipe 모델 로딩 중…";
+    el.status.textContent = "Loading MediaPipe model…";
     initMediaPipe();
 
     mpCamera = new Camera(videoEl, {
@@ -1303,17 +1378,17 @@ async function startCamera() {
     await mpCamera.start();
 
     document.getElementById("startScreen").style.display = "none";
-    el.status.textContent = "인식 중 — 양손을 웹캠에 보여주세요";
+    el.status.textContent = "Tracking — show both hands to the webcam";
   } catch (e) {
     errBox.textContent =
-      "웹캠을 시작할 수 없습니다: " + (e && e.message ? e.message : e) +
-      " — 카메라 권한을 허용하거나, file:// 대신 localhost(http) 로 실행해 보세요.";
-    el.status.textContent = "웹캠 오류";
+      "Cannot start webcam: " + (e && e.message ? e.message : e) +
+      " — grant camera permission, or serve over localhost (http) instead of file://.";
+    el.status.textContent = "Webcam error";
   }
 }
 
 /* =========================================================================
-   부트스트랩
+   Bootstrap
    ========================================================================= */
 initThree();
 initPostProcessing();
@@ -1322,7 +1397,7 @@ medLabelEl = document.getElementById("medLabel");
 medModeEl  = document.getElementById("medMode");
 animate();
 
-// 홈 화면 — 호흡 모드 타일을 클릭하면 해당 모드로 시뮬레이션 시작
+// Home screen — clicking a breath-mode tile starts the simulation in that mode
 document.querySelectorAll(".modeTile").forEach((tile) => {
   tile.addEventListener("click", () => {
     const modeKey = tile.dataset.mode;
@@ -1333,7 +1408,7 @@ document.querySelectorAll(".modeTile").forEach((tile) => {
     lastPhaseIndex = -1;
     initMedHud(currentBreathMode.shape);
     medModeEl.textContent = currentBreathMode.name;
-    // HUD 는 조준(주먹)+당김 시에만 자동 표시되므로 여기서 .show 를 추가하지 않음
+    // HUD auto-shows only on aim (fist) + draw, so we don't add .show here
     startCamera();
   });
 });
