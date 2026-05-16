@@ -1112,11 +1112,14 @@ function onResize() {
 }
 
 /* Arrow mesh.
-   Local axis convention: shaft along Z, HEAD on -Z (forward), FLETCH on +Z (back).
-   After lookAt(target) on the parent group, local -Z aligns with the target
-   direction — so the head (and the arrow's flight) point toward `target`.
-   Group origin sits at the geometric center so projectile physics can use
-   the group position as the arrow's tracked point. */
+   Local axis convention: shaft along Z, HEAD on +Z (forward), FLETCH on -Z (back).
+   Three.js Object3D.lookAt(target) is implemented for non-Camera objects so
+   that the object's local **+Z axis** is what points at `target` (the inverse
+   of the camera convention). Placing the head on +Z therefore makes both the
+   nocked arrow and fired arrows point at whatever they lookAt — the target /
+   velocity direction — so the head is downrange and the fletch is near the
+   user's eye. Group origin sits at the geometric center so projectile physics
+   can use the group position as the arrow's tracked point. */
 function makeArrow(color) {
   const g = new THREE.Group();
   const len = 4.0;
@@ -1128,26 +1131,23 @@ function makeArrow(color) {
   );
   shaft.rotation.x = Math.PI / 2;                       // shaft along Z
 
-  // Arrowhead — clearly placed on -Z, slightly oversized so the forward
-  // direction reads at a glance even up close in first-person view.
+  // Arrowhead — placed on +Z so lookAt() actually points the tip forward.
   const headLen = 0.6;
   const head = new THREE.Mesh(
     new THREE.ConeGeometry(0.18, headLen, 12),
     new THREE.MeshStandardMaterial({ color })
   );
-  head.rotation.x = -Math.PI / 2;                       // tip on -Z
-  head.position.z = -half - headLen / 2;                // sits forward of shaft
+  head.rotation.x = Math.PI / 2;                        // tip on +Z
+  head.position.z = half + headLen / 2;                 // sits forward of shaft
 
-  // Crossed vanes for the fletch — looks like a real fletching from any angle
-  // and avoids the "flat plate facing the camera" illusion that the old
-  // single-box fletching produced in first-person.
+  // Crossed vanes for the fletch — sits at the -Z (rear) end of the shaft.
   const vaneMat = new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide });
   const vaneGeo = new THREE.BoxGeometry(0.4, 0.02, 0.5);
   const v1 = new THREE.Mesh(vaneGeo, vaneMat);
   const v2 = new THREE.Mesh(vaneGeo, vaneMat);
   v2.rotation.z = Math.PI / 2;
-  v1.position.z = half - 0.3;
-  v2.position.z = half - 0.3;
+  v1.position.z = -half + 0.3;
+  v2.position.z = -half + 0.3;
 
   g.add(shaft, head, v1, v2);
   return g;
